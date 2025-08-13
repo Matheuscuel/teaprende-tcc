@@ -398,4 +398,58 @@ router.post(
 )
 
 module.exports = router
+// LISTAR todos os usuários (apenas terapeuta/professor)
+router.get("/", isAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const q = await db.query(
+      `SELECT id, name, email, role, institution, specialization, created_at
+         FROM users
+        ORDER BY created_at DESC`
+    );
+    return res.json(q.rows);
+  } catch (e) {
+    console.error("Erro GET /users:", e);
+    return res.status(500).json({ message: "Erro ao listar usuários" });
+  }
+});
+
+// EXCLUIR usuário (apenas terapeuta/professor) com salvaguardas
+router.delete("/:id", isAdmin, async (req, res) => {
+  const targetId = req.params.id;
+
+  // 1) Impedir excluir a si mesmo
+  if (req.userId === targetId) {
+    return res.status(400).json({ message: "Você não pode excluir a si mesmo." });
+  }
+
+  try {
+    const db = req.db;
+
+    // 2) Verificar existência
+    const u = await db.query(`SELECT id, role FROM users WHERE id = $1`, [targetId]);
+    if (!u.rows.length) return res.status(404).json({ message: "Usuário não encontrado" });
+    const target = u.rows[0];
+
+    // 3) Impedir excluir o último “admin” (terapeuta/professor)
+    if (target.role === "terapeuta" || target.role === "professor") {
+      const c = await db.query(
+        `SELECT COUNT(*)::int AS n
+           FROM users
+          WHERE role IN ('terapeuta','professor')`
+      );
+      if (c.rows[0].n <= 1) {
+        return res.status(400).json({ message: "Não é possível remover o último administrador." });
+      }
+    }
+
+    // 4) Deletar
+    await db.query(`DELETE FROM users WHERE id = $1`, [targetId]);
+    return res.status(204).send();
+  } catch (e) {
+    console.error("Erro DELETE /users/:id:", e);
+    return res.status(500).json({ message: "Erro ao excluir usuário" });
+  }
+});
+
 

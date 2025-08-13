@@ -15,35 +15,33 @@ router.post(
     check("role", "Tipo de usuário é obrigatório").isIn(["terapeuta", "professor", "responsavel", "crianca"]),
   ],
   async (req, res) => {
-    // Verificar erros de validação
-    const errors = validationResult(req)
+    const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, email, password, role, institution, specialization } = req.body
+    const { name, email, password, role, institution, specialization } = req.body;
 
     try {
-      const db = req.db
+      const db = req.db;
 
-      // Verificar se o usuário já existe
-      const userExists = await db.query("SELECT * FROM users WHERE email = $1", [email])
-
+      // Verifica se já existe
+      const userExists = await db.query("SELECT * FROM users WHERE email = $1", [email]);
       if (userExists.rows.length > 0) {
-        return res.status(400).json({ message: "Usuário já existe" })
+        return res.status(400).json({ message: "Usuário já existe" });
       }
 
-      // Criptografar a senha
-      const salt = await bcrypt.genSalt(10)
-      const hashedPassword = await bcrypt.hash(password, salt)
+      // Criptografa a senha
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-      // Inserir o usuário no banco de dados
+      // INSERE usando password_hash
       const result = await db.query(
-        "INSERT INTO users (name, email, password, role, institution, specialization) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, role",
-        [name, email, hashedPassword, role, institution || null, specialization || null],
-      )
+  "INSERT INTO users (name, email, password_hash, role, institution, specialization) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, role",
+  [name, email, hashedPassword, role, institution || null, specialization || null]
+)
 
-      const user = result.rows[0]
+      const user = result.rows[0];
 
       res.status(201).json({
         message: "Usuário registrado com sucesso",
@@ -53,13 +51,13 @@ router.post(
           email: user.email,
           role: user.role,
         },
-      })
+      });
     } catch (err) {
-      console.error("Erro ao registrar usuário:", err)
-      res.status(500).json({ message: "Erro ao registrar usuário" })
+      console.error("Erro ao registrar usuário:", err);
+      res.status(500).json({ message: "Erro ao registrar usuário" });
     }
-  },
-)
+  }
+);
 
 // Rota de login
 router.post(
@@ -87,7 +85,7 @@ router.post(
       const user = result.rows[0]
 
       // Verificar a senha
-      const isMatch = await bcrypt.compare(password, user.password)
+      const isMatch = await bcrypt.compare(password, user.password_hash)
 
       if (!isMatch) {
         return res.status(400).json({ message: "Credenciais inválidas" })
@@ -113,7 +111,7 @@ router.post(
         })
       })
     } catch (err) {
-      console.error("Erro ao fazer login:", err)
+      console.error("Erro ao registrar usuário:", err.message, err.stack)
       res.status(500).json({ message: "Erro ao fazer login" })
     }
   },
