@@ -1,11 +1,13 @@
-const express = require("express")
-const bcrypt = require("bcrypt")
-const jwt = require("jsonwebtoken")
-const { check, validationResult } = require("express-validator")
+const express = require("express");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { check, validationResult } = require("express-validator");
 
-const router = express.Router()
+const router = express.Router();
 
-// Rota de registro
+/**
+ * POST /api/auth/register
+ */
 router.post(
   "/register",
   [
@@ -25,97 +27,98 @@ router.post(
     try {
       const db = req.db;
 
-      // Verifica se já existe
-      const userExists = await db.query("SELECT * FROM users WHERE email = $1", [email]);
-      if (userExists.rows.length > 0) {
+      // Checagem case-insensitive para evitar conflito com ux_users_email (LOWER(email))
+      const exists = await db.query("SELECT 1 FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+      if (exists.rowCount > 0) {
         return res.status(400).json({ message: "Usuário já existe" });
       }
 
-      // Criptografa a senha
+      // Hash de senha
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      // INSERE usando password_hash
-      const result = await db.query(
-  "INSERT INTO users (name, email, password_hash, role, institution, specialization) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, role",
-  [name, email, hashedPassword, role, institution || null, specialization || null]
-)
+      // Insert com password_hash
+      try {
+        const result = await db.query(
+          `INSERT INTO users (name, email, password_hash, role, institution, specialization)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, name, email, role`,
+          [name, email, hashedPassword, role, institution || null, specialization || null]
+        );
 
-      const user = result.rows[0];
-
-      res.status(201).json({
-        message: "Usuário registrado com sucesso",
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      });
+        const user = result.rows[0];
+        return res.status(201).json({
+          message: "Usuário registrado com sucesso",
+          user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        });
+      } catch (e) {
+        // 23505 = unique_violation (ex.: ux_users_email em LOWER(email))
+        if (e.code === "23505") {
+          return res.status(400).json({ message: "Usuário já existe" });
+        }
+        console.error("Erro ao registrar usuário (INSERT):", e.code, e.message);
+        return res.status(500).json({ message: "Erro ao registrar usuário" });
+      }
     } catch (err) {
-      console.error("Erro ao registrar usuário:", err);
-      res.status(500).json({ message: "Erro ao registrar usuário" });
+      console.error("Erro ao registrar usuário:", err.message);
+      return res.status(500).json({ message: "Erro ao registrar usuário" });
     }
   }
 );
 
-// Rota de login
+/**
+ * POST /api/auth/login
+ */
 router.post(
   "/login",
-  [check("email", "Por favor, inclua um email válido").isEmail(), check("password", "Senha é obrigatória").exists()],
+  [
+    check("email", "Por favor, inclua um email válido").isEmail(),
+    check("password", "Senha é obrigatória").exists(),
+  ],
   async (req, res) => {
-    // Verificar erros de validação
-    const errors = validationResult(req)
+    const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password } = req.body
+    const { email, password } = req.body;
 
     try {
-      const db = req.db
+      const db = req.db;
 
-      // Verificar se o usuário existe
-      const result = await db.query("SELECT * FROM users WHERE email = $1", [email])
+      // Busca case-insensitive para bater com o índice LOWER(email)
+      const result = await db.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 
-      if (result.rows.length === 0) {
-        return res.status(400).json({ message: "Credenciais inválidas" })
+      if (result.rowCount === 0) {
+        return res.status(400).json({ message: "Credenciais inválidas" });
       }
 
-      const user = result.rows[0]
+      const user = result.rows[0];
 
-      // Verificar a senha
-      const isMatch = await bcrypt.compare(password, user.password_hash)
-
+      // Confere senha
+      const isMatch = await bcrypt.compare(password, user.password_hash);
       if (!isMatch) {
-        return res.status(400).json({ message: "Credenciais inválidas" })
+        return res.status(400).json({ message: "Credenciais inválidas" });
       }
 
-      // Gerar token JWT
-      const payload = {
-        id: user.id,
-        role: user.role,
-      }
-
+      // Gera token
+      const payload = { id: user.id, role: user.role };
       jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "24h" }, (err, token) => {
-        if (err) throw err
+        if (err) {
+          console.error("Erro ao assinar JWT:", err);
+          return res.status(500).json({ message: "Erro ao fazer login" });
+        }
 
-        res.json({
+        return res.json({
           token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          },
-        })
-      })
+          user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        });
+      });
     } catch (err) {
-      console.error("Erro ao registrar usuário:", err.message, err.stack)
-      res.status(500).json({ message: "Erro ao fazer login" })
+      console.error("Erro ao fazer login:", err.message);
+      return res.status(500).json({ message: "Erro ao fazer login" });
     }
-  },
-)
+  }
+);
 
-module.exports = router
-
+module.exports = router;

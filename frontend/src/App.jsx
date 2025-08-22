@@ -10,6 +10,8 @@ import Reports from "./pages/Reports"
 import UserManagement from "./pages/UserManagement"
 import Profile from "./pages/Profile"
 import NotFound from "./pages/NotFound"
+import Children from "./pages/Children"
+import ChildDetail from "./pages/ChildDetail"
 
 function App() {
   return (
@@ -58,6 +60,30 @@ function App() {
               </ProtectedRoute>
             }
           />
+           <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+           path="/children"
+           element={
+             <ProtectedRoute>
+               <Children />
+             </ProtectedRoute>
+           }
+         />
+         <Route
+           path="/children/:id"
+           element={
+             <ProtectedRoute>
+               <ChildDetail />
+             </ProtectedRoute>
+           }
+         />
           <Route
             path="/profile"
             element={
