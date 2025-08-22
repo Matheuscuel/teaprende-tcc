@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model User {
+  id        Int         @id @default(autoincrement())
+  name      String
+  email     String      @unique
+  password  String
+  role      String
+  children  Child[]     @relation("OwnerChildren")
+  assigned  ChildGame[] @relation("AssignedBy")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Child {
+  id         Int         @id @default(autoincrement())
+  name       String
+  birthdate  DateTime?
+  notes      String?
+  owner_id   Int?
+  owner      User?       @relation("OwnerChildren", fields: [owner_id], references: [id])
+  isActive   Boolean     @default(true)
+  games      ChildGame[]
+  scores     GameScore[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  @@index([owner_id])
+}
+
+model Game {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  difficulty  String?
+  assignedTo  ChildGame[]
+  scores      GameScore[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChildGame {
+  id          Int      @id @default(autoincrement())
+  child_id    Int
+  game_id     Int
+  assigned_by Int?
+  status      String?
+  assignedAt  DateTime @default(now())
+  child       Child    @relation(fields: [child_id], references: [id])
+  game        Game     @relation(fields: [game_id], references: [id])
+  assignedBy  User?    @relation("AssignedBy", fields: [assigned_by], references: [id])
+  @@unique([child_id, game_id])
+  @@index([child_id])
+  @@index([game_id])
+}
+
+model GameScore {
+  id         Int      @id @default(autoincrement())
+  child_id   Int
+  game_id    Int
+  score      Float
+  durationS  Int?
+  playedAt   DateTime @default(now())
+  child      Child    @relation(fields: [child_id], references: [id])
+  game       Game     @relation(fields: [game_id], references: [id])
+  @@index([child_id, game_id, playedAt])
+}
