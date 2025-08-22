@@ -1,76 +1,92 @@
-const express = require("express")
-const cors = require("cors")
-const morgan = require("morgan")
-const helmet = require("helmet")
-const { Pool } = require("pg")
-const dotenv = require("dotenv")
-const authRoutes = require("./routes/auth")
-const userRoutes = require("./routes/users")
-const gameRoutes = require("./routes/games")
-const reportRoutes = require("./routes/reports")
+// src/server.js
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const helmet = require("helmet");
+const { Pool } = require("pg");
+const dotenv = require("dotenv");
 
-// Carrega as variáveis de ambiente do .env
-dotenv.config()
+// rotas existentes
+const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/userRoutes");
+const gameRoutes = require("./routes/games");
+const reportRoutes = require("./routes/reports");
+const childrenRoutes = require("./routes/children");
 
-// Exibe a senha do banco para debug
-console.log("Senha do banco (env):", typeof process.env.DB_PASSWORD, process.env.DB_PASSWORD)
+// NOVA rota
+const gameProgressRoutes = require("./routes/gameProgress");
 
-// Configuração manual do banco de dados PostgreSQL
+dotenv.config();
+
+const app = express();
+
+// Middlewares básicos
+app.use(helmet());
+app.use(cors()); // se precisar, configure origin/credentials
+app.use(morgan("dev"));
+app.use(express.json());
+
+// Pool do Postgres
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-})
+  port: Number(process.env.DB_PORT || 5432),
+});
 
-// Teste de conexão com o banco de dados
-pool.query("SELECT NOW()", (err, res) => {
-  if (err) {
-    console.error("Erro ao conectar ao banco de dados:", err)
-  } else {
-    console.log("Conexão com o banco de dados estabelecida com sucesso!")
-  }
-})
+// Teste de conexão (opcional)
+pool.query("SELECT NOW()", (err) => {
+  if (err) console.error("Erro ao conectar ao banco:", err);
+  else console.log("Conexão com o banco ok!");
+});
 
-const app = express()
+// Handler de erro do pool
+pool.on("error", (err) => {
+  console.error("Erro inesperado no pool:", err);
+});
 
-// Middlewares
-app.use(helmet())
-app.use(cors())
-app.use(morgan("dev"))
-app.use(express.json())
-
-// Disponibiliza a conexão com o banco para as rotas
-app.use((req, res, next) => {
-  req.db = pool
-  next()
-})
+// Injete o pool ANTES das rotas
+app.use((req, _res, next) => {
+  req.db = pool;
+  next();
+});
 
 // Rotas
-app.use("/api/auth", authRoutes)
-app.use("/api/users", userRoutes)
-app.use("/api/games", gameRoutes)
-app.use("/api/reports", reportRoutes)
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/games", gameRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/children", childrenRoutes);
 
-// Rota de teste
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok", message: "API funcionando corretamente!" })
-})
+// MONTA a nova rota
+app.use("/api/game-progress", gameProgressRoutes);
 
-// Middleware de tratamento de erros
-app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(500).json({
+// Healthcheck
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok", message: "API funcionando corretamente!" });
+});
+
+// Middleware de erro (centralizado)
+app.use((err, _req, res, _next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
     error: true,
     message: process.env.NODE_ENV === "production" ? "Erro interno do servidor" : err.message,
-  })
-})
+  });
+});
 
-// Inicia o servidor
-const PORT = process.env.PORT || 3001
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`)
-})
+// Sobe o servidor
+const PORT = process.env.PORT || 3001;
+const server = app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
 
-module.exports = app
+// Graceful shutdown
+process.on("SIGINT", async () => {
+  console.log("Encerrando...");
+  await pool.end().catch(() => {});
+  server.close(() => process.exit(0));
+});
+
+module.exports = app;
