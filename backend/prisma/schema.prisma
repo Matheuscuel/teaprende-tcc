@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model child_professional {
+  id              Int       @id @default(autoincrement())
+  child_id        Int?
+  professional_id Int?
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  children        children? @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users?    @relation(fields: [professional_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([child_id, professional_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model children {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @db.VarChar(255)
+  age                Int
+  gender             String               @db.VarChar(50)
+  notes              String?
+  parent_id          Int?
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  child_game         child_game[]
+  child_professional child_professional[]
+  users              users?               @relation(fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  game_progress      game_progress[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model game_progress {
+  id         Int       @id @default(autoincrement())
+  game_id    Int?
+  child_id   Int?
+  score      Int
+  time_spent Int?
+  notes      String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  children   children? @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  games      games?    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model games {
+  id            Int             @id @default(autoincrement())
+  title         String          @db.VarChar(255)
+  description   String
+  level         String          @db.VarChar(50)
+  category      String          @db.VarChar(100)
+  image_url     String?         @db.VarChar(255)
+  instructions  String?
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  child_game    child_game[]
+  game_progress game_progress[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @db.VarChar(255)
+  email              String               @unique @db.VarChar(255)
+  password           String               @db.VarChar(255)
+  role               String               @db.VarChar(50)
+  institution        String?              @db.VarChar(255)
+  specialization     String?              @db.VarChar(255)
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  child_game         child_game[]
+  child_professional child_professional[]
+  children           children[]
+}
+
+model child_game {
+  child_id    Int
+  game_id     Int
+  assigned_by Int?
+  assigned_at DateTime @default(now()) @db.Timestamp(6)
+  users       users?   @relation(fields: [assigned_by], references: [id], onUpdate: NoAction)
+  children    children @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  games       games    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([child_id, game_id])
+}

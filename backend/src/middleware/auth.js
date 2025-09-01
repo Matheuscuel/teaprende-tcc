@@ -1,48 +1,22 @@
-const jwt = require("jsonwebtoken")
+﻿const jwt = require("jsonwebtoken");
 
-const authMiddleware = (req, res, next) => {
-  // Obter o token do cabeçalho de autorização
-  const authHeader = req.headers.authorization
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || "";
+  const parts = header.split(" ");
+  const hasBearer = parts.length === 2 && /^Bearer$/i.test(parts[0]);
+  const token = hasBearer ? parts[1] : null;
 
-  if (!authHeader) {
-    return res.status(401).json({ error: true, message: "Token não fornecido" })
+  if (!token) {
+    return res.status(401).json({ error: true, message: "Token não fornecido ou inválido" });
   }
 
-  // O formato esperado é "Bearer TOKEN"
-  const parts = authHeader.split(" ")
-
-  if (parts.length !== 2) {
-    return res.status(401).json({ error: true, message: "Erro no formato do token" })
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // { id, email, role }
+    return next();
+  } catch (e) {
+    return res.status(401).json({ error: true, message: "Token inválido" });
   }
-
-  const [scheme, token] = parts
-
-  if (!/^Bearer$/i.test(scheme)) {
-    return res.status(401).json({ error: true, message: "Token mal formatado" })
-  }
-
-  // Verificar se o token é válido
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ error: true, message: "Token inválido" })
-    }
-
-    // Se o token for válido, salva o ID do usuário para uso nas rotas
-    req.userId = decoded.id
-    req.userRole = decoded.role
-
-    return next()
-  })
 }
 
-// Middleware para verificar se o usuário tem permissão de administrador
-const isAdmin = (req, res, next) => {
-  if (req.userRole !== "terapeuta" && req.userRole !== "professor") {
-    return res.status(403).json({ error: true, message: "Acesso negado: permissão insuficiente" })
-  }
-
-  return next()
-}
-
-module.exports = { authMiddleware, isAdmin }
-
+module.exports = { authMiddleware };

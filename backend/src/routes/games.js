@@ -1,257 +1,190 @@
-const express = require("express")
-const { authMiddleware, isAdmin } = require("../middleware/auth")
-const { check, validationResult } = require("express-validator")
+﻿const express = require('express');
+const { body, param, query, validationResult } = require('express-validator');
+const { prisma } = require('../db');
+const { authMiddleware } = require('../middleware/auth');
 
-const router = express.Router()
+const router = express.Router();
 
-// Middleware de autenticação para todas as rotas
-router.use(authMiddleware)
+const ROLES = { ADMIN:'admin', TERAPEUTA:'terapeuta', PROFESSOR:'professor', RESPONSAVEL:'responsavel', CRIANCA:'crianca' };
+const LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];
 
-// Rota para listar todos os jogos
-router.get("/", async (req, res) => {
-  try {
-    const db = req.db
+function canCreateOrEdit(role) {
+  return [ROLES.ADMIN, ROLES.TERAPEUTA, ROLES.PROFESSOR].includes(role);
+}
 
-    const result = await db.query(
-      "SELECT id, title, description, level, category, image_url, created_at FROM games ORDER BY title",
-    )
+async function canManageChild(user, childId) {
+  if (!user) return false;
+  if (user.role === ROLES.ADMIN) return true;
 
-    res.json(result.rows)
-  } catch (err) {
-    console.error("Erro ao listar jogos:", err)
-    res.status(500).json({ message: "Erro ao listar jogos" })
+  const child = await prisma.children.findUnique({
+    where: { id: Number(childId) },
+    select: { id:true, parent_id:true }
+  });
+  if (!child) return false;
+
+  if (user.role === ROLES.RESPONSAVEL) return Number(child.parent_id) === Number(user.id);
+
+  if (user.role === ROLES.TERAPEUTA || user.role === ROLES.PROFESSOR) {
+    const link = await prisma.child_professional.findFirst({
+      where: { child_id: child.id, professional_id: user.id },
+      select: { id:true }
+    });
+    return !!link;
   }
-})
+  return false;
+}
 
-// Rota para obter detalhes de um jogo específico
-router.get("/:id", async (req, res) => {
-  try {
-    const db = req.db
-    const gameId = req.params.id
+function validate(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) { res.status(400).json({ errors: errors.array() }); return false; }
+  return true;
+}
 
-    const result = await db.query(
-      "SELECT id, title, description, level, category, image_url, instructions, created_at FROM games WHERE id = $1",
-      [gameId],
-    )
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Jogo não encontrado" })
-    }
-
-    res.json(result.rows[0])
-  } catch (err) {
-    console.error("Erro ao obter detalhes do jogo:", err)
-    res.status(500).json({ message: "Erro ao obter detalhes do jogo" })
-  }
-})
-
-// Rota para adicionar um novo jogo (apenas para terapeutas e professores)
-router.post(
-  "/",
-  isAdmin,
-  [
-    check("title", "Título é obrigatório").not().isEmpty(),
-    check("description", "Descrição é obrigatória").not().isEmpty(),
-    check("level", "Nível é obrigatório").isIn(["Iniciante", "Intermediário", "Avançado"]),
-    check("category", "Categoria é obrigatória").not().isEmpty(),
-  ],
+// GET /api/games
+router.get(
+  '/',
+  authMiddleware,
+  query('q').optional().isString(),
   async (req, res) => {
-    // Verificar erros de validação
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
+    const q = (req.query.q || '').trim();
+    const where = q ? {
+      OR: [
+        { title: { contains: q, mode: 'insensitive' } },
+        { category: { contains: q, mode: 'insensitive' } },
+      ],
+    } : {};
+    const rows = await prisma.games.findMany({ where, orderBy: { id:'asc' } });
+    if (!rows.length) return res.status(204).send();
+    return res.json(rows);
+  }
+);
 
-    const { title, description, level, category, imageUrl, instructions } = req.body
+// GET /api/games/:id
+router.get(
+  '/:id',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  async (req, res) => {
+    if (!validate(req, res)) return;
+    const id = Number(req.params.id);
+    const game = await prisma.games.findUnique({ where: { id } });
+    if (!game) return res.status(404).json({ message: 'Jogo não encontrado' });
+    return res.json(game);
+  }
+);
 
-    try {
-      const db = req.db
+// POST /api/games
+router.post(
+  '/',
+  authMiddleware,
+  body('title').trim().notEmpty(),
+  body('description').trim().notEmpty(),
+  body('level').isIn(LEVELS),
+  body('category').trim().notEmpty(),
+  body('image_url').optional().isString(),
+  body('instructions').optional().isString(),
+  async (req, res) => {
+    if (!canCreateOrEdit(req.user.role)) return res.status(403).json({ message: 'Sem permissão' });
+    if (!validate(req, res)) return;
 
-      const result = await db.query(
-        "INSERT INTO games (title, description, level, category, image_url, instructions) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-        [title, description, level, category, imageUrl || null, instructions || null],
-      )
+    const data = {
+      title: req.body.title.trim(),
+      description: req.body.description.trim(),
+      level: req.body.level,
+      category: req.body.category.trim(),
+      image_url: req.body.image_url ?? null,
+      instructions: req.body.instructions ?? null,
+    };
+    const game = await prisma.games.create({ data });
+    return res.status(201).json(game);
+  }
+);
 
-      res.status(201).json({
-        message: "Jogo adicionado com sucesso",
-        gameId: result.rows[0].id,
-      })
-    } catch (err) {
-      console.error("Erro ao adicionar jogo:", err)
-      res.status(500).json({ message: "Erro ao adicionar jogo" })
-    }
-  },
-)
-
-// Rota para atualizar um jogo (apenas para terapeutas e professores)
+// PUT /api/games/:id
 router.put(
-  "/:id",
-  isAdmin,
-  [
-    check("title", "Título é obrigatório").not().isEmpty(),
-    check("description", "Descrição é obrigatória").not().isEmpty(),
-    check("level", "Nível é obrigatório").isIn(["Iniciante", "Intermediário", "Avançado"]),
-    check("category", "Categoria é obrigatória").not().isEmpty(),
-  ],
+  '/:id',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  body('title').optional().trim().notEmpty(),
+  body('description').optional().trim().notEmpty(),
+  body('level').optional().isIn(LEVELS),
+  body('category').optional().trim().notEmpty(),
+  body('image_url').optional().isString(),
+  body('instructions').optional().isString(),
   async (req, res) => {
-    // Verificar erros de validação
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
+    if (!canCreateOrEdit(req.user.role)) return res.status(403).json({ message: 'Sem permissão' });
+    if (!validate(req, res)) return;
 
-    const { title, description, level, category, imageUrl, instructions } = req.body
-    const gameId = req.params.id
+    const id = Number(req.params.id);
+    const patch = {};
+    ['title','description','level','category','image_url','instructions'].forEach(k=>{
+      if (req.body[k] !== undefined) patch[k] = typeof req.body[k] === 'string' ? req.body[k].trim() : req.body[k];
+    });
 
     try {
-      const db = req.db
-
-      const result = await db.query(
-        "UPDATE games SET title = $1, description = $2, level = $3, category = $4, image_url = $5, instructions = $6 WHERE id = $7 RETURNING id, title, description, level, category, image_url, instructions",
-        [title, description, level, category, imageUrl || null, instructions || null, gameId],
-      )
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Jogo não encontrado" })
-      }
-
-      res.json(result.rows[0])
-    } catch (err) {
-      console.error("Erro ao atualizar jogo:", err)
-      res.status(500).json({ message: "Erro ao atualizar jogo" })
+      const upd = await prisma.games.update({ where: { id }, data: patch });
+      return res.json(upd);
+    } catch (e) {
+      if (e.code === 'P2025') return res.status(404).json({ message: 'Jogo não encontrado' });
+      console.error('[Games PUT/:id] error:', e);
+      return res.status(500).json({ message: 'Erro ao atualizar jogo' });
     }
-  },
-)
-
-// Rota para registrar o progresso de uma criança em um jogo
-router.post(
-  "/progress",
-  [
-    check("gameId", "ID do jogo é obrigatório").not().isEmpty(),
-    check("childId", "ID da criança é obrigatório").not().isEmpty(),
-    check("score", "Pontuação é obrigatória").isInt({ min: 0, max: 100 }),
-  ],
-  async (req, res) => {
-    // Verificar erros de validação
-    const errors = validationResult(req)
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() })
-    }
-
-    const { gameId, childId, score, timeSpent, notes } = req.body
-
-    try {
-      const db = req.db
-
-      // Verificar se o usuário tem acesso a esta criança
-      let hasAccess = false
-
-      if (req.userRole === "responsavel") {
-        const result = await db.query("SELECT * FROM children WHERE id = $1 AND parent_id = $2", [childId, req.userId])
-        hasAccess = result.rows.length > 0
-      } else if (req.userRole === "terapeuta" || req.userRole === "professor") {
-        const result = await db.query("SELECT * FROM child_professional WHERE child_id = $1 AND professional_id = $2", [
-          childId,
-          req.userId,
-        ])
-        hasAccess = result.rows.length > 0
-      } else if (req.userRole === "crianca") {
-        // Se o usuário for uma criança, verificar se é a própria criança
-        hasAccess = req.userId === childId
-      }
-
-      if (!hasAccess) {
-        return res.status(403).json({ message: "Acesso negado" })
-      }
-
-      // Verificar se o jogo existe
-      const gameResult = await db.query("SELECT * FROM games WHERE id = $1", [gameId])
-
-      if (gameResult.rows.length === 0) {
-        return res.status(404).json({ message: "Jogo não encontrado" })
-      }
-
-      // Verificar se a criança existe
-      const childResult = await db.query("SELECT * FROM children WHERE id = $1", [childId])
-
-      if (childResult.rows.length === 0) {
-        return res.status(404).json({ message: "Criança não encontrada" })
-      }
-
-      // Registrar o progresso
-      const result = await db.query(
-        "INSERT INTO game_progress (game_id, child_id, score, time_spent, notes) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        [gameId, childId, score, timeSpent || null, notes || null],
-      )
-
-      res.status(201).json({
-        message: "Progresso registrado com sucesso",
-        progressId: result.rows[0].id,
-      })
-    } catch (err) {
-      console.error("Erro ao registrar progresso:", err)
-      res.status(500).json({ message: "Erro ao registrar progresso" })
-    }
-  },
-)
-
-// Rota para obter atividades recentes
-router.get("/recent-activities", async (req, res) => {
-  try {
-    const db = req.db
-
-    let query
-    let params
-
-    if (req.userRole === "responsavel") {
-      // Responsáveis veem apenas atividades de suas próprias crianças
-      query = `
-        SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
-        FROM game_progress gp
-        JOIN children c ON gp.child_id = c.id
-        JOIN games g ON gp.game_id = g.id
-        WHERE c.parent_id = $1
-        ORDER BY gp.created_at DESC
-        LIMIT 10
-      `
-      params = [req.userId]
-    } else if (req.userRole === "terapeuta" || req.userRole === "professor") {
-      // Terapeutas e professores veem atividades de crianças associadas a eles
-      query = `
-        SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
-        FROM game_progress gp
-        JOIN children c ON gp.child_id = c.id
-        JOIN games g ON gp.game_id = g.id
-        JOIN child_professional cp ON c.id = cp.child_id
-        WHERE cp.professional_id = $1
-        ORDER BY gp.created_at DESC
-        LIMIT 10
-      `
-      params = [req.userId]
-    } else if (req.userRole === "crianca") {
-      // Crianças veem apenas suas próprias atividades
-      query = `
-        SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
-        FROM game_progress gp
-        JOIN children c ON gp.child_id = c.id
-        JOIN games g ON gp.game_id = g.id
-        WHERE gp.child_id = $1
-        ORDER BY gp.created_at DESC
-        LIMIT 10
-      `
-      params = [req.userId]
-    } else {
-      return res.status(403).json({ message: "Acesso negado" })
-    }
-
-    const result = await db.query(query, params)
-
-    res.json(result.rows)
-  } catch (err) {
-    console.error("Erro ao obter atividades recentes:", err)
-    res.status(500).json({ message: "Erro ao obter atividades recentes" })
   }
-})
+);
 
-module.exports = router
+// DELETE /api/games/:id
+router.delete(
+  '/:id',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  async (req,res)=>{
+    if (req.user.role !== ROLES.ADMIN) return res.status(403).json({ message: 'Sem permissão' });
+    if (!validate(req, res)) return;
 
+    const id = Number(req.params.id);
+    try {
+      await prisma.games.delete({ where: { id } });
+      return res.status(204).send();
+    } catch (e) {
+      if (e.code === 'P2025') return res.status(404).json({ message: 'Jogo não encontrado' });
+      console.error('[Games DELETE/:id] error:', e);
+      return res.status(500).json({ message: 'Erro ao remover jogo' });
+    }
+  }
+);
+
+// POST /api/games/:id/progress   { child_id, score(0-100), time_spent?, notes? }
+router.post(
+  '/:id/progress',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  body('child_id').isInt({min:1}),
+  body('score').isInt({min:0,max:100}),
+  body('time_spent').optional().isInt({min:0}),
+  body('notes').optional().isString(),
+  async (req, res) => {
+    if (!validate(req, res)) return;
+    const game_id = Number(req.params.id);
+    const { child_id, score, time_spent, notes } = req.body;
+
+    if (!(await canManageChild(req.user, child_id))) {
+      return res.status(403).json({ message: 'Sem permissão' });
+    }
+
+    const g = await prisma.games.findUnique({ where: { id: game_id }, select: { id:true } });
+    if (!g) return res.status(404).json({ message: 'Jogo não encontrado' });
+
+    const rec = await prisma.game_progress.create({
+      data: {
+        game_id,
+        child_id: Number(child_id),
+        score: Number(score),
+        time_spent: time_spent ?? null,
+        notes: notes ?? null
+      }
+    });
+    return res.status(201).json(rec);
+  }
+);
+
+module.exports = router;

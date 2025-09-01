@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 const ALLOWED_ROLES = new Set(["responsavel", "professor", "terapeuta", "crianca"]);
 
@@ -35,3 +35,4 @@ module.exports = {
   getAllUsers,
   createUser,
 };
+
