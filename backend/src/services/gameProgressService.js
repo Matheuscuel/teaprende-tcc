@@ -21,3 +21,4 @@ async function create(db, { game_id, child_id, score, time_spent, notes }) {
 }
 
 module.exports = { create };
+

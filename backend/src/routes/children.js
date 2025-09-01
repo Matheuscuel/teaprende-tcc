@@ -1,457 +1,468 @@
-// backend/src/routes/children.js
-const express = require("express");
+﻿const express = require('express');
+const { body, param, query, validationResult } = require('express-validator');
+const { prisma } = require('../db');
+const { authMiddleware } = require('../middleware/auth');
+
 const router = express.Router();
-const { authMiddleware } = require("../middleware/auth");
 
-// Papéis do sistema
-const ROLES = {
-  TERAPEUTA: "terapeuta",
-  PROFESSOR: "professor",
-  RESPONSAVEL: "responsavel",
-  CRIANCA: "crianca",
-};
 
-// Quem pode acessar endpoints de crianças (cada ação ainda checa granularmente):
-const ALLOWED_ROLES = new Set([ROLES.TERAPEUTA, ROLES.PROFESSOR, ROLES.RESPONSAVEL]);
+function toPlain(data) {
+  const replacer = (_k, v) => {
+    if (typeof v === 'bigint') {
+      const n = Number(v);
+      return Number.isSafeInteger(n) ? n : v.toString();
+    }
+    if (v && typeof v === 'object' && v.constructor && v.constructor.name === 'Decimal') {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : v.toString();
+    }
+    return v;
+  };
+  return JSON.parse(JSON.stringify(data, replacer));
+}
+const ROLES = { ADMIN:'admin', TERAPEUTA:'terapeuta', PROFESSOR:'professor', RESPONSAVEL:'responsavel', CRIANCA:'crianca' };
+const ALLOWED_ROLES = new Set([ROLES.ADMIN, ROLES.TERAPEUTA, ROLES.PROFESSOR, ROLES.RESPONSAVEL]);
 
-// Permissão contextual por criança:
-// - terapeuta/professor: pode
-// - responsável: somente se for o owner (children.owner_id)
-function canManageChild(userRole, userId, childRow) {
-  if (!userRole) return false;
-  if (userRole === ROLES.TERAPEUTA || userRole === ROLES.PROFESSOR) return true;
-  if (userRole === ROLES.RESPONSAVEL && childRow && Number(childRow.owner_id) === Number(userId)) return true;
+function assertAllowed(req, res) {
+  const role = req.user?.role;
+  if (!role || !ALLOWED_ROLES.has(role)) { res.status(403).json({ error: 'Sem permissão' }); return false; }
+  return true;
+}
+
+async function canManageChild(user, childId) {
+  if (!user) return false;
+  if (user.role === ROLES.ADMIN) return true;
+
+  const child = await prisma.children.findUnique({ where: { id: Number(childId) }, select: { id: true, parent_id: true } });
+  if (!child) return false;
+
+  if (user.role === ROLES.RESPONSAVEL) return Number(child.parent_id) === Number(user.id);
+
+  if (user.role === ROLES.TERAPEUTA || user.role === ROLES.PROFESSOR) {
+    const link = await prisma.child_professional.findFirst({
+      where: { child_id: child.id, professional_id: user.id },
+      select: { id: true },
+    });
+    return !!link;
+  }
   return false;
 }
 
-/**
- * POST /api/children
- * Cadastrar criança.
- * body: { name, birth_date?, user_id?, owner_id?, notes? }
- * - RESPONSAVEL: força owner_id = req.userId (ignora owner_id do body). user_id (terapeuta/prof) opcional.
- * - TERAPEUTA/PROFESSOR: exige owner_id no body; user_id pode ser omitido.
- */
-router.post("/", authMiddleware, async (req, res) => {
-  try {
-    const userRole = req.userRole;
-    const userId = req.userId;
+function validate(req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) { res.status(400).json({ errors: errors.array() }); return false; }
+  return true;
+}
 
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
+// POST /api/children
+router.post(
+  '/',
+  authMiddleware,
+  body('name').trim().notEmpty().withMessage('name é obrigatório'),
+  body('age').isInt({ min: 0 }).withMessage('age deve ser inteiro >= 0'),
+  body('gender').isIn(['masculino','feminino','outro']).withMessage('gender inválido'),
+  body('notes').optional().isString(),
+  body('parent_id').optional({ nullable: true }).isInt({ min: 1 }),
+  async (req, res) => {
+    if (!assertAllowed(req, res)) return;
+    if (!validate(req, res)) return;
 
-    const { name, birth_date, user_id, owner_id, notes } = req.body || {};
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: "name é obrigatório" });
-    }
+    try {
+      const { name, age, gender, notes, parent_id } = req.body;
+      const data = {
+        name: name.trim(),
+        age: Number(age),
+        gender,
+        notes: notes ?? null,
+        parent_id: req.user.role === ROLES.RESPONSAVEL ? Number(req.user.id) : (parent_id ?? null),
+      };
+      const child = await prisma.children.create({ data });
 
-    let ownerIdToSave = null;
-    let therapistIdToSave = null;
-
-    if (userRole === ROLES.RESPONSAVEL) {
-      // Responsável sempre é o owner
-      ownerIdToSave = Number(userId);
-      therapistIdToSave = Number.isInteger(Number(user_id)) ? Number(user_id) : null;
-    } else {
-      // Terapeuta/Professor devem indicar quem é o responsável (owner_id)
-      if (!Number.isInteger(Number(owner_id))) {
-        return res.status(400).json({ error: "owner_id (responsável) é obrigatório e deve ser inteiro" });
+      if (req.user.role === ROLES.TERAPEUTA || req.user.role === ROLES.PROFESSOR) {
+        await prisma.child_professional.create({ data: { child_id: child.id, professional_id: req.user.id } });
       }
-      ownerIdToSave = Number(owner_id);
-      therapistIdToSave = Number.isInteger(Number(user_id)) ? Number(user_id) : null;
+      return res.status(201).json(child);
+    } catch (e) {
+      console.error('[Children POST] error:', e);
+      return res.status(500).json({ message: 'Erro ao criar criança' });
     }
-
-    const sql = `
-      INSERT INTO children (name, birth_date, user_id, owner_id, created_at, notes)
-      VALUES ($1, $2, $3, $4, NOW(), $5)
-      RETURNING id, name, birth_date, user_id, owner_id, created_at, notes
-    `;
-    const params = [name.trim(), birth_date || null, therapistIdToSave, ownerIdToSave, notes || null];
-    const result = await req.db.query(sql, params);
-
-    return res.status(201).json({ child: result.rows[0] });
-  } catch (err) {
-    console.error("POST /api/children erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
   }
-});
+);
 
-/**
- * POST /api/children/:id/games
- * Atribuir jogo para a criança. body: { game_id }
- * - Terapeuta/Professor podem sempre; Responsável somente se for owner da criança
- */
-router.post("/:id/games", authMiddleware, async (req, res) => {
-  try {
-    const userRole = req.userRole;
-    const userId = req.userId;
+// GET /api/children
+router.get(
+  '/',
+  authMiddleware,
+  query('q').optional().isString(),
+  query('page').optional().isInt({min:1}),
+  query('pageSize').optional().isInt({min:1,max:100}),
+  async (req, res) => {
+    if (!assertAllowed(req, res)) return;
+    try {
+      const q = (req.query.q || '').trim();
+      const page = Number(req.query.page || 1);
+      const pageSize = Number(req.query.pageSize || 20);
+      const skip = (page - 1) * pageSize;
 
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
+      const baseWhere = q ? { name: { contains: q, mode: 'insensitive' } } : {};
+      let where = baseWhere;
+
+      if (req.user.role === ROLES.RESPONSAVEL) {
+        where = { ...baseWhere, parent_id: req.user.id };
+      } else if (req.user.role === ROLES.TERAPEUTA || req.user.role === ROLES.PROFESSOR) {
+        const ids = await prisma.child_professional.findMany({ where: { professional_id: req.user.id }, select: { child_id: true } });
+        const childIds = ids.map(r => r.child_id);
+        if (childIds.length === 0) return res.status(204).send();
+        where = { ...baseWhere, id: { in: childIds } };
+      }
+
+      const [rows, total] = await Promise.all([
+        prisma.children.findMany({ where, orderBy: { id:'asc' }, skip, take: pageSize }),
+        prisma.children.count({ where }),
+      ]);
+
+      if (!rows.length) return res.status(204).send();
+      return res.json({ page, pageSize, total, data: rows });
+    } catch (e) {
+      console.error('[Children GET] error:', e);
+      return res.status(500).json({ message: 'Erro ao listar crianças' });
     }
-
-    const childId = Number(req.params.id);
-    const { game_id } = req.body || {};
-    const gameId = Number(game_id);
-
-    if (!Number.isInteger(childId) || !Number.isInteger(gameId)) {
-      return res.status(400).json({ error: "childId e game_id devem ser inteiros" });
-    }
-
-    // Carrega a criança
-    const childRes = await req.db.query(
-      "SELECT id, name, user_id, owner_id FROM children WHERE id = $1",
-      [childId]
-    );
-    if (childRes.rowCount === 0) {
-      return res.status(404).json({ error: "Criança não encontrada" });
-    }
-    const child = childRes.rows[0];
-
-    // Permissão contextual
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para gerenciar esta criança" });
-    }
-
-    // Verifica jogo
-    const gameRes = await req.db.query("SELECT id FROM games WHERE id = $1", [gameId]);
-    if (gameRes.rowCount === 0) {
-      return res.status(404).json({ error: "Jogo não encontrado" });
-    }
-
-    // Atribui (idempotente via UNIQUE(child_id, game_id)), preenchendo assigned_by (NOT NULL)
-    const linkSql = `
-      INSERT INTO children_games (child_id, game_id, assigned_by)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (child_id, game_id)
-      DO UPDATE SET
-        assigned_by = EXCLUDED.assigned_by,
-        assigned_at = NOW(),
-        active = TRUE
-      RETURNING id, child_id, game_id, assigned_at, assigned_by, active
-    `;
-    const ins = await req.db.query(linkSql, [childId, gameId, userId]);
-
-    let link = ins.rows[0] || null;
-    if (!link) {
-      const sel = await req.db.query(
-        "SELECT id, child_id, game_id, assigned_at, assigned_by, active FROM children_games WHERE child_id=$1 AND game_id=$2",
-        [childId, gameId]
-      );
-      link = sel.rows[0] || null;
-    }
-
-    return res.status(201).json({
-      assigned: Boolean(link),
-      link,
-    });
-  } catch (err) {
-    console.error("POST /api/children/:id/games erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
   }
-});
+);
 
-/**
- * GET /api/children
- * Lista crianças com paginação e busca por nome.
- * Query: ?q=...&page=1&pageSize=20
- */
-router.get("/", authMiddleware, async (req, res) => {
+// GET /api/children/:id
+router.get('/:id', authMiddleware, param('id').isInt({min:1}), async (req,res)=>{
+  if (!assertAllowed(req, res)) return;
+  if (!validate(req, res)) return;
   try {
-    const userRole = req.userRole;
-    const userId = req.userId;
+    const id = Number(req.params.id);
+    if (!(await canManageChild(req.user, id))) return res.status(403).json({ message: 'Sem permissão' });
 
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
-    const q = (req.query.q || "").trim();
-    const page = Math.max(1, parseInt(req.query.page || "1", 10));
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || "20", 10)));
-    const offset = (page - 1) * pageSize;
-
-    const whereParts = [];
-    const params = [];
-
-    if (q) {
-      params.push(`%${q}%`);
-      whereParts.push(`c.name ILIKE $${params.length}`);
-    }
-
-    // restrição por papel
-    if (userRole === ROLES.RESPONSAVEL) {
-      params.push(userId);
-      whereParts.push(`c.owner_id = $${params.length}`);
-    }
-
-    const whereSQL = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
-
-    const sql = `
-      SELECT c.id, c.name, c.birth_date, c.user_id, c.owner_id, c.created_at, c.notes,
-             u_owner.name AS owner_name, u_ther.name AS therapist_name
-      FROM children c
-      LEFT JOIN users u_owner ON u_owner.id = c.owner_id
-      LEFT JOIN users u_ther  ON u_ther.id  = c.user_id
-      ${whereSQL}
-      ORDER BY c.created_at DESC
-      LIMIT ${pageSize} OFFSET ${offset}
-    `;
-    const rows = await req.db.query(sql, params);
-
-    // total para paginação
-    const countSql = `SELECT COUNT(*)::int AS total FROM children c ${whereSQL}`;
-    const countRes = await req.db.query(countSql, params);
-
-    return res.json({
-      page,
-      pageSize,
-      total: countRes.rows[0]?.total || 0,
-      data: rows.rows,
-    });
-  } catch (err) {
-    console.error("GET /api/children erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
-  }
-});
-
-/**
- * GET /api/children/:id
- * Detalhe de uma criança.
- */
-router.get("/:id", authMiddleware, async (req, res) => {
-  try {
-    const userRole = req.userRole;
-    const userId = req.userId;
-
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
-    const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) {
-      return res.status(400).json({ error: "childId inválido" });
-    }
-
-    const sql = `
-      SELECT c.id, c.name, c.birth_date, c.user_id, c.owner_id, c.created_at, c.notes,
-             u_owner.name AS owner_name, u_ther.name AS therapist_name
-      FROM children c
-      LEFT JOIN users u_owner ON u_owner.id = c.owner_id
-      LEFT JOIN users u_ther  ON u_ther.id  = c.user_id
-      WHERE c.id = $1
-    `;
-    const resChild = await req.db.query(sql, [childId]);
-    if (resChild.rowCount === 0) {
-      return res.status(404).json({ error: "Criança não encontrada" });
-    }
-    const child = resChild.rows[0];
-
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para ver esta criança" });
-    }
-
+    const child = await prisma.children.findUnique({ where: { id } });
+    if (!child) return res.status(404).json({ message: 'Criança não encontrada' });
     return res.json(child);
-  } catch (err) {
-    console.error("GET /api/children/:id erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
+  } catch (e) {
+    console.error('[Children GET/:id] error:', e);
+    return res.status(500).json({ message: 'Erro ao buscar criança' });
   }
 });
 
-/**
- * PUT /api/children/:id
- * body: { name?, birth_date?, user_id?, notes? }
- */
-router.put("/:id", authMiddleware, async (req, res) => {
-  try {
-    const userRole = req.userRole;
-    const userId = req.userId;
+// PUT /api/children/:id
+router.put('/:id',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  body('name').optional().trim().notEmpty(),
+  body('age').optional().isInt({min:0}),
+  body('gender').optional().isIn(['masculino','feminino','outro']),
+  body('notes').optional().isString(),
+  body('parent_id').optional().isInt({min:1}),
+  async (req,res)=>{
+    if (!assertAllowed(req, res)) return;
+    if (!validate(req, res)) return;
+    try {
+      const id = Number(req.params.id);
+      if (!(await canManageChild(req.user, id))) return res.status(403).json({ message: 'Sem permissão' });
 
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
+      const patch = {};
+      if (req.body.name) patch.name = req.body.name.trim();
+      if (req.body.age !== undefined) patch.age = Number(req.body.age);
+      if (req.body.gender) patch.gender = req.body.gender;
+      if (req.body.notes !== undefined) patch.notes = req.body.notes;
+      if (req.body.parent_id !== undefined) patch.parent_id = Number(req.body.parent_id);
 
-    const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) {
-      return res.status(400).json({ error: "childId inválido" });
+      const updated = await prisma.children.update({ where: { id }, data: patch });
+      return res.json(updated);
+    } catch (e) {
+      if (e.code === 'P2025') return res.status(404).json({ message: 'Criança não encontrada' });
+      console.error('[Children PUT/:id] error:', e);
+      return res.status(500).json({ message: 'Erro ao atualizar criança' });
     }
-
-    const childRes = await req.db.query("SELECT * FROM children WHERE id = $1", [childId]);
-    if (childRes.rowCount === 0) {
-      return res.status(404).json({ error: "Criança não encontrada" });
-    }
-    const child = childRes.rows[0];
-
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para editar esta criança" });
-    }
-
-    const { name, birth_date, user_id, notes } = req.body || {};
-    const fields = [];
-    const params = [];
-    let idx = 1;
-
-    if (typeof name === "string" && name.trim()) {
-      fields.push(`name = $${idx++}`); params.push(name.trim());
-    }
-    if (birth_date) {
-      fields.push(`birth_date = $${idx++}`); params.push(birth_date);
-    }
-    if (Number.isInteger(Number(user_id)) || user_id === null) {
-      fields.push(`user_id = $${idx++}`); params.push(user_id === null ? null : Number(user_id));
-    }
-    if (typeof notes === "string") {
-      fields.push(`notes = $${idx++}`); params.push(notes);
-    }
-
-    if (fields.length === 0) {
-      return res.status(400).json({ error: "Nada para atualizar" });
-    }
-
-    const sql = `
-      UPDATE children
-      SET ${fields.join(", ")}
-      WHERE id = $${idx}
-      RETURNING id, name, birth_date, user_id, owner_id, created_at, notes
-    `;
-    params.push(childId);
-
-    const upd = await req.db.query(sql, params);
-    return res.json({ child: upd.rows[0] });
-  } catch (err) {
-    console.error("PUT /api/children/:id erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
-  }
 });
 
-/**
- * DELETE /api/children/:id
- */
-router.delete("/:id", authMiddleware, async (req, res) => {
+// DELETE /api/children/:id
+router.delete('/:id', authMiddleware, param('id').isInt({min:1}), async (req,res)=>{
+  if (!assertAllowed(req, res)) return;
+  if (!validate(req, res)) return;
   try {
-    const userRole = req.userRole;
-    const userId = req.userId;
-
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
-    const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) {
-      return res.status(400).json({ error: "childId inválido" });
-    }
-
-    const childRes = await req.db.query("SELECT * FROM children WHERE id = $1", [childId]);
-    if (childRes.rowCount === 0) {
-      return res.status(404).json({ error: "Criança não encontrada" });
-    }
-    const child = childRes.rows[0];
-
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para remover esta criança" });
-    }
-
-    await req.db.query("DELETE FROM children WHERE id = $1", [childId]);
+    const id = Number(req.params.id);
+    if (!(await canManageChild(req.user, id))) return res.status(403).json({ message: 'Sem permissão' });
+    await prisma.children.delete({ where: { id } });
     return res.status(204).send();
-  } catch (err) {
-    console.error("DELETE /api/children/:id erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
+  } catch (e) {
+    if (e.code === 'P2025') return res.status(404).json({ message: 'Criança não encontrada' });
+    console.error('[Children DELETE/:id] error:', e);
+    return res.status(500).json({ message: 'Erro ao remover criança' });
   }
 });
 
-/**
- * GET /api/children/:id/games
- * Lista jogos atribuídos à criança.
- */
-router.get("/:id/games", authMiddleware, async (req, res) => {
+// POST /api/children/:id/games
+router.post('/:id/games',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  body('game_id').isInt({min:1}),
+  async (req,res)=>{
+    if (!assertAllowed(req, res)) return;
+    if (!validate(req, res)) return;
+    try {
+      const childId = Number(req.params.id);
+      const gameId  = Number(req.body.game_id);
+      if (!(await canManageChild(req.user, childId))) return res.status(403).json({ message: 'Sem permissão' });
+
+      const game = await prisma.games.findUnique({ where: { id: gameId }, select: { id:true } });
+      if (!game) return res.status(404).json({ message: 'Jogo não encontrado' });
+
+      await prisma.$executeRaw`
+        INSERT INTO child_game (child_id, game_id, assigned_by, assigned_at)
+        VALUES (${childId}, ${gameId}, ${req.user.id}, NOW())
+        ON CONFLICT (child_id, game_id)
+        DO UPDATE SET assigned_by=EXCLUDED.assigned_by, assigned_at=NOW();
+      `;
+
+      const [link] = await prisma.$queryRaw`
+        SELECT child_id, game_id, assigned_by, assigned_at
+        FROM child_game
+        WHERE child_id = ${childId} AND game_id = ${gameId}
+      `;
+      return res.status(201).json({ link: link ?? null });
+    } catch (e) {
+      console.error('[Children POST /:id/games] error:', e);
+      return res.status(500).json({ message: 'Erro ao atribuir jogo' });
+    }
+  }
+);
+
+// DELETE /api/children/:id/games/:gameId
+router.delete('/:id/games/:gameId',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  param('gameId').isInt({min:1}),
+  async (req,res)=>{
+    if (!assertAllowed(req, res)) return;
+    if (!validate(req, res)) return;
+    try {
+      const childId = Number(req.params.id);
+      const gameId  = Number(req.params.gameId);
+      if (!(await canManageChild(req.user, childId))) return res.status(403).json({ message: 'Sem permissão' });
+
+      const affected = await prisma.$executeRaw`
+        DELETE FROM child_game WHERE child_id = ${childId} AND game_id = ${gameId}
+      `;
+      if (Number(affected) === 0) return res.status(404).json({ message: 'Vínculo não encontrado' });
+      return res.status(204).send();
+    } catch (e) {
+      console.error('[Children DELETE /:id/games/:gameId] error:', e);
+      return res.status(500).json({ message: 'Erro ao remover vínculo' });
+    }
+  }
+);
+
+// GET /api/children/:id/games
+router.get('/:id/games', authMiddleware, param('id').isInt({min:1}), async (req,res)=>{
+  if (!assertAllowed(req, res)) return;
+  if (!validate(req, res)) return;
   try {
-    const userRole = req.userRole;
-    const userId = req.userId;
-
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
     const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) {
-      return res.status(400).json({ error: "childId inválido" });
-    }
+    if (!(await canManageChild(req.user, childId))) return res.status(403).json({ message: 'Sem permissão' });
 
-    const childRes = await req.db.query(
-      "SELECT id, name, user_id, owner_id FROM children WHERE id=$1",
-      [childId]
-    );
-    if (childRes.rowCount === 0) {
-      return res.status(404).json({ error: "Criança não encontrada" });
-    }
-    const child = childRes.rows[0];
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
-    const sql = `
-      SELECT cg.id, cg.child_id, cg.game_id, cg.assigned_at, cg.assigned_by, cg.active,
+    const rows = await prisma.$queryRaw`
+      SELECT cg.child_id, cg.game_id, cg.assigned_at, cg.assigned_by,
              g.title, g.category, g.level
-      FROM children_games cg
+      FROM child_game cg
       JOIN games g ON g.id = cg.game_id
-      WHERE cg.child_id = $1
+      WHERE cg.child_id = ${childId}
       ORDER BY cg.assigned_at DESC
     `;
-    const rs = await req.db.query(sql, [childId]);
-    return res.json(rs.rows);
-  } catch (err) {
-    console.error("GET /api/children/:id/games erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
+    if (!rows.length) return res.status(204).send();
+    return res.json(rows);
+  } catch (e) {
+    console.error('[Children GET /:id/games] error:', e);
+    return res.status(500).json({ message: 'Erro ao listar jogos' });
   }
 });
 
-/**
- * GET /api/children/:id/performance
- * Lista relatórios (desempenho) da criança a partir da tabela reports.
- * - Responsável só enxerga se for owner; terapeuta/professor podem ver.
- */
-router.get("/:id/performance", authMiddleware, async (req, res) => {
+// GET /api/children/:id/performance/:gameId/timeseries
+router.get('/:id/performance/:gameId/timeseries',
+  authMiddleware,
+  param('id').isInt({min:1}),
+  param('gameId').isInt({min:1}),
+  query('from').optional().isISO8601(),
+  query('to').optional().isISO8601(),
+  async (req,res)=>{
+    if (!assertAllowed(req, res)) return;
+    if (!validate(req, res)) return;
+    try {
+      const childId = Number(req.params.id);
+      const gameId  = Number(req.params.gameId);
+      if (!(await canManageChild(req.user, childId))) return res.status(403).json({ message: 'Sem permissão' });
+
+      const fromDate = req.query.from ? new Date(req.query.from) : null;
+      const toDate   = req.query.to   ? new Date(req.query.to)   : null;
+
+      let rows;
+      if (fromDate && toDate) {
+        rows = await prisma.$queryRaw`
+          SELECT id, score, COALESCE(time_spent,0) AS time_spent, notes, created_at
+          FROM game_progress
+          WHERE child_id = ${childId} AND game_id = ${gameId}
+            AND created_at >= ${fromDate} AND created_at < ${toDate}
+          ORDER BY created_at ASC
+        `;
+      } else if (fromDate) {
+        rows = await prisma.$queryRaw`
+          SELECT id, score, COALESCE(time_spent,0) AS time_spent, notes, created_at
+          FROM game_progress
+          WHERE child_id = ${childId} AND game_id = ${gameId}
+            AND created_at >= ${fromDate}
+          ORDER BY created_at ASC
+        `;
+      } else if (toDate) {
+        rows = await prisma.$queryRaw`
+          SELECT id, score, COALESCE(time_spent,0) AS time_spent, notes, created_at
+          FROM game_progress
+          WHERE child_id = ${childId} AND game_id = ${gameId}
+            AND created_at < ${toDate}
+          ORDER BY created_at ASC
+        `;
+      } else {
+        rows = await prisma.$queryRaw`
+          SELECT id, score, COALESCE(time_spent,0) AS time_spent, notes, created_at
+          FROM game_progress
+          WHERE child_id = ${childId} AND game_id = ${gameId}
+          ORDER BY created_at ASC
+        `;
+      }
+
+      return res.json({
+        child: { id: childId }, game: { id: gameId },
+        points: rows.map(r => ({ id:r.id, score:Number(r.score), time_spent:Number(r.time_spent), notes:r.notes, completed_at:r.created_at }))
+      });
+    } catch (e) {
+      console.error('[Children GET timeseries] error:', e);
+      return res.status(500).json({ message: 'Erro ao buscar série temporal' });
+    }
+  }
+);
+
+// GET /api/children/:id/performance
+router.get('/:id/performance', authMiddleware, param('id').isInt({min:1}), async (req,res)=>{
+  if (!assertAllowed(req, res)) return;
+  if (!validate(req, res)) return;
   try {
-    const userRole = req.userRole;
-    const userId = req.userId;
-    if (!ALLOWED_ROLES.has(userRole)) {
-      return res.status(403).json({ error: "Sem permissão" });
-    }
-
     const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) {
-      return res.status(400).json({ error: "childId inválido" });
-    }
+    if (!(await canManageChild(req.user, childId))) return res.status(403).json({ message: 'Sem permissão' });
 
-    const childRes = await req.db.query(
-      "SELECT id, name, user_id, owner_id FROM children WHERE id = $1",
-      [childId]
-    );
-    if (childRes.rowCount === 0) return res.status(404).json({ error: "Criança não encontrada" });
-    const child = childRes.rows[0];
-
-    if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para ver o desempenho desta criança" });
-    }
-
-    // Resumo por jogo (usa a VIEW criada na migração)
-    const sumSql = `
-      SELECT v.*, g.title
+    const rows = await prisma.$queryRaw`
+      SELECT v.child_id, v.game_id, v.sessions, v.avg_score, v.median_score,
+             v.total_time_spent, v.first_play, v.last_play, g.title
       FROM v_child_performance v
       JOIN games g ON g.id = v.game_id
-      WHERE v.child_id = $1
+      WHERE v.child_id = ${childId}
       ORDER BY v.last_play DESC NULLS LAST
     `;
-    const summary = await req.db.query(sumSql, [childId]);
-
-    return res.json({
-      child: { id: child.id, name: child.name },
-      summary: summary.rows
-    });
-  } catch (err) {
-    console.error("GET /api/children/:id/performance erro:", err);
-    return res.status(500).json({ error: "Erro interno" });
+    return res.json({ child: { id: childId }, summary: rows });
+  } catch (e) {
+    console.error('[Children GET /:id/performance] error:', e);
+    return res.status(500).json({ message: 'Erro ao buscar resumo' });
   }
 });
 
+//
+// ===== NOVAS ROTAS: PROGRESSO + RESUMO =====
 
+// POST /api/children/:id/games/:gameId/progress
+router.post("/:id/games/:gameId/progress", authMiddleware, async (req, res) => {
+  try {
+    const role = req.user?.role;
+    const uid  = Number(req.user?.id);
+    if (!role) return res.status(401).json({ error: "Token inválido" });
+
+    const childId = Number(req.params.id);
+    const gameId  = Number(req.params.gameId);
+    if (!Number.isInteger(childId) || !Number.isInteger(gameId)) {
+      return res.status(400).json({ error: "childId e gameId devem ser inteiros" });
+    }
+
+    // criança + permissão contextual
+    const childRows = await prisma.$queryRaw`SELECT id, parent_id FROM children WHERE id = ${childId}`;
+    if (childRows.length === 0) return res.status(404).json({ error: "Criança não encontrada" });
+    const child = childRows[0];
+
+    const allowed = role === "terapeuta" || role === "professor" || (role === "responsavel" && Number(child.parent_id) === uid);
+    if (!allowed) return res.status(403).json({ error: "Sem permissão para registrar progresso" });
+
+    // jogo existe?
+    const gameRows = await prisma.$queryRaw`SELECT id FROM games WHERE id = ${gameId}`;
+    if (gameRows.length === 0) return res.status(404).json({ error: "Jogo não encontrado" });
+
+    // precisa estar atribuído
+    const linkRows = await prisma.$queryRaw`SELECT 1 FROM child_game WHERE child_id=${childId} AND game_id=${gameId}`;
+    if (linkRows.length === 0) return res.status(400).json({ error: "Jogo não está atribuído à criança" });
+
+    const { score, time_spent, notes } = req.body ?? {};
+    if (!Number.isFinite(Number(score))) return res.status(400).json({ error: "score numérico é obrigatório (0..100)" });
+
+    const s  = Math.max(0, Math.min(100, Number(score)));
+    const ts = Number.isFinite(Number(time_spent)) ? Number(time_spent) : 0;
+
+    const ins = await prisma.$queryRaw`
+      INSERT INTO game_progress (child_id, game_id, score, time_spent, notes)
+      VALUES (${childId}, ${gameId}, ${s}, ${ts}, ${typeof notes === 'string' ? notes : null})
+      RETURNING id, child_id, game_id, score, time_spent, notes, created_at
+    `;
+
+    return res.status(201).json({ progress: ins[0] });
+  } catch (err) {
+    console.error("POST /children/:id/games/:gameId/progress erro:", err);
+    return res.status(500).json({ error: "Erro ao registrar progresso" });
+  }
+});
+
+// GET /api/children/:id/performance  (resumo agregado por jogo — sem VIEW)
+// --- GET /api/children/:id/performance ---
+// ---------- RESUMO (sem depender de VIEW) ----------
+router.get(
+  "/:id/performance",
+  authMiddleware,
+  [param("id").isInt({ min: 1 })],
+  async (req, res) => {
+    if (!assertAllowed(req, res)) return;
+
+    try {
+      const childId = Number(req.params.id);
+
+      const allowed = await canManageChildPrisma(req.user, childId);
+      if (allowed === null) return res.status(404).json({ message: "Criança não encontrada" });
+      if (!allowed) return res.status(403).json({ message: "Sem permissão" });
+
+      // agrega direto da game_progress com casts para evitar BigInt/Decimal
+      const rows = await prisma.$queryRaw`
+        SELECT 
+          gp.game_id::int                                  AS game_id,
+          g.title, g.category, g.level,
+          COUNT(*)::int                                    AS plays,
+          MAX(gp.created_at)                               AS last_play,
+          ROUND(AVG(COALESCE(gp.score,0))::numeric, 2)     AS avg_score,
+          MAX(gp.score)::int                               AS max_score,
+          ROUND(AVG(COALESCE(gp.time_spent,0))::numeric,2) AS avg_time
+        FROM game_progress gp
+        JOIN games g ON g.id = gp.game_id
+        WHERE gp.child_id = ${childId}
+        GROUP BY gp.game_id, g.title, g.category, g.level
+        ORDER BY last_play DESC NULLS LAST
+      `;
+
+      // toPlain garante JSON serializável
+      return res.json(toPlain({ child: { id: childId }, summary: rows }));
+    } catch (e) {
+      console.error('[Children GET /:id/performance] error:', e);
+      return res.status(500).json({ message: 'Erro ao obter desempenho' });
+    }
+  }
+);
 module.exports = router;
+
+
+
+
+
+

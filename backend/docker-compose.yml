@@ -1,0 +1,34 @@
+﻿version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: teaprende-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: cuel1234
+      POSTGRES_DB: teaprende
+    ports:
+      - "5433:5432"        # host:container
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/database:/scripts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: teaprende-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8081:80"
+
+volumes:
+  pgdata:

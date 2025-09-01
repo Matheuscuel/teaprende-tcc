@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 const { PrismaClient } = require("@prisma/client");
 const jwt = require("jsonwebtoken");
 

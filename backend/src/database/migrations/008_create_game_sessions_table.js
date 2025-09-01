@@ -33,3 +33,4 @@ exports.up = async function (knex) {
 exports.down = async function (knex) {
   await knex.schema.withSchema('public').dropTableIfExists('game_sessions');
 };
+
