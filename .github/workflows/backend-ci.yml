@@ -1,11 +1,10 @@
 ﻿name: backend-ci
 on:
   pull_request:
-    branches: [ main ]
-    paths: [ "backend/**" ]
+    branches: [ main ]   # roda em PRs para main
   push:
-    branches: [ develop ]
-    paths: [ "backend/**" ]
+    branches: [ develop ]# roda a cada push na develop
+  workflow_dispatch:      # permite rodar manualmente
 
 jobs:
   test:
@@ -23,6 +22,6 @@ jobs:
       - name: Install deps
         run: npm ci || npm i
       - name: Generate Prisma Client
-        run: npm run prisma:generate || echo "skip prisma:generate"
+        run: npm run prisma:generate || true
       - name: Run tests
         run: npm test --silent || echo "no tests"
