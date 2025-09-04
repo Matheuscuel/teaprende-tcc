@@ -1,68 +1,75 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import api from '../services/api';
-import { Line } from 'react-chartjs-2';
-import 'chart.js/auto';
+﻿// frontend/src/pages/ChildDetail.jsx
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import Button from "@/components/ui/Button";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { api } from "@/services/api";
 
 export default function ChildDetail() {
   const { id } = useParams();
   const [child, setChild] = useState(null);
-  const [summary, setSummary] = useState([]);
-  const [series, setSeries] = useState({});
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const c = await api.get(`/children/${id}`);
-      setChild(c.data);
-      const s = await api.get(`/children/${id}/performance`);
-      setSummary(s.data);
-
-      const all = {};
-      for (const row of s.data) {
-        const ts = await api.get(`/children/${id}/performance/${row.game_id}/timeseries`);
-        all[row.game_id] = ts.data;
+      setErr("");
+      setLoading(true);
+      try {
+        const c = await api.get(`/api/children/${id}`);
+        const g = await api.get(`/api/children/${id}/games`).catch(() => []);
+        if (!cancelled) {
+          setChild(c?.data || c);
+          const list = Array.isArray(g?.data) ? g.data : (Array.isArray(g) ? g : []);
+          setGames(list);
+        }
+      } catch {
+        if (!cancelled) setErr("Não foi possível carregar os dados.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setSeries(all);
     })();
+    return () => { cancelled = true; };
   }, [id]);
 
-  if (!child) return <div className="p-4">Carregando...</div>;
+  if (loading) return <div className="p-6">Carregando...</div>;
+  if (err) return <div className="p-6 text-red-600">{err}</div>;
+  if (!child) return <div className="p-6">Criança não encontrada.</div>;
 
   return (
-    <div className="p-4 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold">{child.name}</h1>
-        <div className="text-sm text-gray-600">
-          {child.age} anos • {child.gender} • {child.parent_name} ({child.parent_email})
-        </div>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        {summary.map(s => {
-          const ts = series[s.game_id] || [];
-          const labels   = ts.map(p => new Date(p.day).toLocaleDateString());
-          const scores   = ts.map(p => p.avg_score);
-          const timeSecs = ts.map(p => p.total_time_spent);
+    <div className="p-6">
+      <Card className="max-w-3xl mx-auto">
+        <CardHeader className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-brand-700">
+            {child.name} — {child.age} anos {child.gender ? `(${child.gender})` : ""}
+          </h1>
+          <Link to="/children">
+            <Button>Voltar</Button>
+          </Link>
+        </CardHeader>
 
-          return (
-            <div key={s.game_id} className="border rounded p-3">
-              <h3 className="font-semibold mb-1">{s.title}</h3>
-              <div className="text-sm mb-2">
-                Sessões: {s.sessions} • Média: {s.avg_score} • Mediana: {Math.round(s.median_score)} • Tempo total: {s.total_time_spent ?? 0}s
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <div className="text-sm font-medium mb-1">Evolução da Pontuação</div>
-                  <Line data={{ labels, datasets: [{ label: 'Pontuação média', data: scores }] }} />
-                </div>
-                <div>
-                  <div className="text-sm font-medium mb-1">Tempo gasto (s)</div>
-                  <Line data={{ labels, datasets: [{ label: 'Tempo por dia', data: timeSecs }] }} />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        <CardBody>
+          <h2 className="text-sm font-medium text-slate-600 mb-2">Jogos atribuídos</h2>
+          {games.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum jogo atribuído.</p>
+          ) : (
+            <ul className="space-y-2">
+              {games.map((g, i) => (
+                <li key={g.id || g.game_id || i} className="rounded-lg border p-3">
+                  <div className="font-medium">{g.title || `Jogo #${g.game_id}`}</div>
+                  {(g.category || g.level) && (
+                    <div className="text-xs text-slate-500">
+                      {[g.category, g.level].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

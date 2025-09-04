@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
@@ -6,7 +6,6 @@ const { prisma } = require("../db");
 
 const router = express.Router();
 
-// POST /api/auth/login
 router.post(
   "/login",
   [
@@ -38,7 +37,6 @@ router.post(
   }
 );
 
-// (Opcional) registro rápido
 router.post(
   "/register",
   [

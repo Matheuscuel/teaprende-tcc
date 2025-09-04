@@ -8,6 +8,7 @@ router.get("/", authMiddleware, async (_req, res) => {
   try {
     const users = await prisma.users.findMany({
       select: { id: true, name: true, email: true, role: true, institution: true, specialization: true, created_at: true },
+      orderBy: { id: 'asc' }
     });
     if (!users.length) return res.status(204).send();
     return res.json(users);

@@ -1,136 +1,181 @@
-"use client"
+// frontend/src/pages/Games.jsx
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
-import type React from "react"
-import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
-import Layout from "../components/Layout"
-import api from "../services/api"
+// 🔁 USE **UM** DOS BLOCOS DE IMPORT A SEGUIR:
 
+// Se você tem alias @ → src no vite.config.js:
+import Button from "@/components/ui/Button";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { api } from "@/services/api";
 
-const Games = () => {
-  const [games, setGames] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState({
-    level: "",
-    category: "",
-  })
+// // OU (sem alias), comente os de cima e descomente estes:
+// // import Button from "../components/ui/Button";
+// // import { Card, CardHeader, CardBody } from "../components/ui/Card";
+// // import { api } from "../services/api";
+
+export default function Games() {
+  const [searchParams] = useSearchParams();
+  const childId = searchParams.get("child"); // se vier ?child=2, habilita "Atribuir"
+  const [list, setList] = useState([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+  const [assigningId, setAssigningId] = useState(null);
 
   useEffect(() => {
-    const fetchGames = async () => {
+    (async () => {
+      setLoading(true);
+      setErr("");
       try {
-        const response = await api.get("/games")
-        setGames(response.data)
-      } catch (error) {
-        console.error("Erro ao carregar jogos:", error)
+        const g = await api.get("/api/games");
+        const arr = Array.isArray(g) ? g : Array.isArray(g?.data) ? g.data : [];
+        setList(arr);
+      } catch (e) {
+        console.error(e);
+        setErr("Não foi possível carregar os jogos.");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
+    })();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((g) =>
+      [g.title, g.category, g.level]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(term))
+    );
+  }, [list, q]);
+
+  async function handleAssign(gameId) {
+    if (!childId) return;
+    setAssigningId(gameId);
+    setErr("");
+    setOk("");
+    try {
+      await api.post(`/api/children/${childId}/games`, { game_id: gameId });
+      setOk("Jogo atribuído com sucesso!");
+    } catch (e) {
+      let msg = "Erro ao atribuir jogo.";
+      try {
+        const parsed = JSON.parse(e.message);
+        msg = parsed?.message || msg;
+      } catch {
+        if (typeof e.message === "string" && e.message.length < 300) msg = e.message;
+      }
+      setErr(msg);
+    } finally {
+      setAssigningId(null);
     }
-
-    fetchGames()
-  }, [])
-
-  const filteredGames = games.filter((game) => {
-    if (filter.level && game.level !== filter.level) return false
-    if (filter.category && game.category !== filter.category) return false
-    return true
-  })
-
-  const levels = ["Iniciante", "Intermediário", "Avançado"]
-  const categories = [...new Set(games.map((game) => game.category))]
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
-            <p className="mt-2 text-gray-500">Carregando jogos...</p>
-          </div>
-        </div>
-      </Layout>
-    )
   }
 
   return (
-    <Layout>
-      <div className="pb-5 border-b border-gray-200 sm:flex sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Jogos Educativos</h1>
-        <div className="mt-3 sm:mt-0 sm:ml-4 flex space-x-3">
-          <select
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            value={filter.level}
-            onChange={(e) => setFilter({ ...filter, level: e.target.value })}
-          >
-            <option value="">Todos os níveis</option>
-            {levels.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            value={filter.category}
-            onChange={(e) => setFilter({ ...filter, category: e.target.value })}
-          >
-            <option value="">Todas as categorias</option>
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredGames.length > 0 ? (
-          filteredGames.map((game) => (
-            <div key={game.id} className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="h-48 w-full overflow-hidden">
-                <img
-                  src={game.imageUrl || "/placeholder.svg?height=200&width=300"}
-                  alt={game.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="px-4 py-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">{game.title}</h3>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                    {game.level}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-gray-500">{game.description}</p>
-                <div className="mt-4">
-                  <Link
-                    to={`/games/${game.id}`}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    Jogar
-                  </Link>
-                </div>
-              </div>
+    <div className="mx-auto max-w-6xl p-4">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-800">Jogos</h1>
+              {childId ? (
+                <p className="text-sm text-slate-500">
+                  Modo atribuição para a criança <span className="font-medium">#{childId}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Dica: abra <span className="font-mono">/games?child=ID</span> para atribuir jogos.
+                </p>
+              )}
             </div>
-          ))
-        ) : (
-          <div className="col-span-full bg-white overflow-hidden shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6 text-center">
-              <p className="text-gray-500">Nenhum jogo encontrado com os filtros selecionados.</p>
-              <button
-                onClick={() => setFilter({ level: "", category: "" })}
-                className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                Limpar filtros
-              </button>
+
+            <div className="flex gap-2">
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por título, categoria, nível..."
+                className="w-72 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400"
+              />
+              <Link to="/children">
+                <Button variant="ghost">← Voltar</Button>
+              </Link>
             </div>
           </div>
-        )}
-      </div>
-    </Layout>
-  )
-}
+        </CardHeader>
 
-export default Games
+        <CardBody>
+          {loading && (
+            <div className="py-10 text-center text-slate-500">Carregando...</div>
+          )}
+
+          {!loading && (err || ok) && (
+            <div className="mb-4">
+              {err && (
+                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {err}
+                </div>
+              )}
+              {ok && (
+                <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
+                  {ok}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading && !err && (
+            <>
+              {filtered.length === 0 ? (
+                <div className="py-10 text-center text-slate-500">
+                  Nenhum jogo encontrado.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filtered.map((g) => (
+                    <div
+                      key={g.id}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col"
+                    >
+                      <div className="mb-2">
+                        <div className="text-lg font-semibold text-slate-800">
+                          {g.title}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          Categoria: <span className="font-medium">{g.category}</span>
+                          {" · "}
+                          Nível: <span className="font-medium">{g.level}</span>
+                        </div>
+                      </div>
+
+                      {g.description && (
+                        <p className="text-sm text-slate-600 line-clamp-3">{g.description}</p>
+                      )}
+
+                      <div className="mt-auto pt-4 flex items-center justify-between">
+                        <Link to={childId ? `/children/${childId}/games/${g.id}` : `/games/${g.id}`}>
+                          <Button variant="secondary" size="sm">Detalhes</Button>
+                        </Link>
+
+                        {childId && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleAssign(g.id)}
+                            disabled={assigningId === g.id}
+                          >
+                            {assigningId === g.id ? "Atribuindo..." : "Atribuir"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
+}

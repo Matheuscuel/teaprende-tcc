@@ -1,118 +1,104 @@
-"use client"
+﻿import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import peng from "../assets/penguin.svg"; // importa o asset (funciona local e no deploy)
 
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const navigate = useNavigate();
 
-const Login = () => {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
-  const navigate = useNavigate()
+  const API = (import.meta.env.VITE_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!email || !password) {
-      setError("Por favor, preencha todos os campos")
-      return
-    }
-
+  async function onSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setErr("");
     try {
-      setError("")
-      setLoading(true)
-      await signIn(email, password)
-      navigate("/")
-    } catch (err) {
-      setError(err.response?.data?.message || "Falha ao fazer login. Verifique suas credenciais.")
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || "Falha no login");
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify({ id: data.id, email: data.email, role: data.role }));
+      }
+      navigate("/dashboard");
+    } catch (e) {
+      setErr(e.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">TEAprende</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Desenvolvimento de Habilidades Sociais para Crianças com TEA
-          </p>
+    <div className="min-h-screen grid place-items-center bg-white">
+      <div className="w-[340px] sm:w-[380px] rounded-3xl shadow-xl p-8 relative" style={{ background: "#0E63B6" }}>
+        {/* Mascote */}
+        <div className="w-full flex justify-center -mt-16 mb-3">
+          <div className="w-36 h-36 rounded-full grid place-items-center shadow-lg ring-4 ring-white/60" style={{ background: "#0E63B6" }}>
+            <img src={peng} alt="Pinguim" className="w-28 h-28 block select-none pointer-events-none" />
+          </div>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Senha
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link to="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Esqueceu sua senha?
-              </Link>
-            </div>
-          </div>
+        {/* Título */}
+        <h1 className="text-4xl font-extrabold text-center mb-6" style={{ color: "#FFE4B5" }}>
+          TEAprende
+        </h1>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
-            >
-              {loading ? "Entrando..." : "Entrar"}
+        {/* Formulário */}
+        <form onSubmit={onSubmit} className="space-y-4">
+          <label className="block">
+            <span className="block text-sm font-semibold" style={{ color: "#FFE4B5" }}>E-mail:</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 w-full rounded-xl px-4 py-2 focus:outline-none focus:ring-4"
+              style={{ background: "#FFEDCC", color: "#0e1b2e", boxShadow: "inset 0 1px 0 rgba(0,0,0,.06)", caretColor: "#0E63B6" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="block text-sm font-semibold" style={{ color: "#FFE4B5" }}>Senha:</span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 w-full rounded-xl px-4 py-2 focus:outline-none focus:ring-4"
+              style={{ background: "#FFEDCC", color: "#0e1b2e", boxShadow: "inset 0 1px 0 rgba(0,0,0,.06)", caretColor: "#0E63B6" }}
+            />
+          </label>
+
+          <div className="flex justify-end">
+            <button type="button" className="text-xs underline opacity-90 hover:opacity-100" style={{ color: "#FFE4B5" }}
+              onClick={() => alert("Recuperação de senha em breve 😉")}>
+              Esqueceu a senha?
             </button>
           </div>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-600">
-              Não tem uma conta?{" "}
-              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Cadastre-se
-              </Link>
-            </p>
-          </div>
+          {err && <div className="text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700">{err}</div>}
+
+          <button type="submit" disabled={loading}
+            className="w-full rounded-2xl py-2.5 text-white font-semibold shadow-md transition active:scale-[.98] disabled:opacity-70"
+            style={{ background: "#F59E0B" }}>
+            {loading ? "Entrando…" : "Entrar"}
+          </button>
+
+          <p className="text-center text-sm mt-2" style={{ color: "#FFE4B5" }}>
+            Não tem uma conta?{" "}
+            <Link to="/register" className="underline font-semibold" style={{ color: "#FFEDCC" }}>
+              Cadastre-se
+            </Link>
+          </p>
         </form>
       </div>
     </div>
-  )
+  );
 }
-
-export default Login
-

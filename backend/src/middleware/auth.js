@@ -9,12 +9,11 @@ function authMiddleware(req, res, next) {
   if (!token) {
     return res.status(401).json({ error: true, message: "Token não fornecido ou inválido" });
   }
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // { id, email, role }
     return next();
-  } catch (e) {
+  } catch {
     return res.status(401).json({ error: true, message: "Token inválido" });
   }
 }

@@ -1,4 +1,5 @@
-﻿const express = require("express");
+﻿const listEndpoints = require('express-list-endpoints');
+const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
@@ -7,6 +8,7 @@ const authRoutes = require("./routes/auth");
 const usersRoutes = require("./routes/users");
 const childrenRoutes = require("./routes/children");
 const gamesRoutes = require("./routes/games");
+const childrenPerformanceRoutes = require("./routes/childrenPerformance"); // << ADICIONE
 
 const app = express();
 app.use(helmet());
@@ -20,14 +22,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/children", childrenRoutes);
 app.use("/api/games", gamesRoutes);
-
-// 404
-app.use((req, res) => res.status(404).json({ message: "Rota não encontrada" }));
-
-// error handler
-app.use((err, _req, res, _next) => {
-  console.error("[ERROR]", err);
-  return res.status(err.status || 500).json({ message: err.message || "Erro interno do servidor" });
-});
-
+app.use("/api/children", childrenPerformanceRoutes); // << ADICIONE
+console.table(listEndpoints(app));
+// 404 + error handler...
 module.exports = app;

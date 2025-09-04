@@ -1,30 +1,24 @@
-// backend/tests/user.test.js
-
 const request = require('supertest');
-const express = require('express');
-const userRoutes = require('../routes/userRoutes');
+const app = require('../src/app');
 
-const app = express();
-app.use(express.json());
-app.use('/api', userRoutes);
+async function loginAsAdmin() {
+  const res = await request(app)
+    .post('/api/auth/login')
+    .send({ email: 'admin@teste.com', password: 'Admin@123' });
+  return res.body.token;
+}
 
-describe('Testes da API de Usuários', () => {
-  it('deve retornar status 200 na listagem de usuários', async () => {
+describe('GET /api/users', () => {
+  it('deve exigir token', async () => {
     const res = await request(app).get('/api/users');
-    expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.status).toBe(401);
   });
 
-  it('deve cadastrar um novo usuário', async () => {
+  it('deve listar com token', async () => {
+    const token = await loginAsAdmin();
     const res = await request(app)
-      .post('/api/users')
-      .send({
-        name: 'Teste Automatizado',
-        email: 'teste@automacao.com',
-        password: '123456'
-      });
-    expect(res.statusCode).toBe(201);
-    expect(res.body).toHaveProperty('id');
-    expect(res.body.name).toBe('Teste Automatizado');
+      .get('/api/users')
+      .set('Authorization', `Bearer ${token}`);
+    expect([200,204]).toContain(res.status);
   });
 });
