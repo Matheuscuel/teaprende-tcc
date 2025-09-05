@@ -1,34 +1,26 @@
-﻿export const API_URL =
-  (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.replace(/\/$/, "")) || "";
+﻿export const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
 
-const KEY = "teaprende.token";
-export const setToken   = (t) => localStorage.setItem(KEY, t);
-export const getToken   = () => localStorage.getItem(KEY) || "";
-export const clearToken = () => localStorage.removeItem(KEY);
+export async function api(path, options = {}) {
+  const token = localStorage.getItem("token");
 
-async function request(path, { method = "GET", body, headers } = {}) {
-  const h = { "Content-Type": "application/json", ...(headers || {}) };
-  const token = getToken();
-  if (token) h.Authorization = `Bearer ${token}`;
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
 
-  const res = await fetch(API_URL + path, {
-    method,
-    headers: h,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  const ct = res.headers.get("content-type") || "";
+  let data = null;
+  try {
+    data = ct.includes("application/json") ? await res.json() : await res.text();
+  } catch {}
 
   if (!res.ok) {
-    const err = new Error(data?.message || data?.error || res.statusText);
-    err.data = data;
-    throw err;
+    const msg = (data && (data.message || data.error)) || `${res.status} ${res.statusText}`;
+    throw new Error(msg);
   }
+
   return data;
 }
-
-export const api = {
-  get:  (p)    => request(p),
-  post: (p,b)  => request(p, { method: "POST", body: b }),
-};

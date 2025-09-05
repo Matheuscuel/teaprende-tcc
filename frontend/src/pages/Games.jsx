@@ -1,181 +1,56 @@
-// frontend/src/pages/Games.jsx
-import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+﻿import { useEffect, useState } from "react";
+import api from "../services/api";
 
-// 🔁 USE **UM** DOS BLOCOS DE IMPORT A SEGUIR:
+function GameCard({ game }) {
+  return (
+    <div className="rounded-2xl bg-white/95 shadow p-5 hover:shadow-md transition">
+      <div className="text-xl font-semibold text-sky-900">{game.title}</div>
+      <div className="text-sky-700/80 mt-1">{game.category} · {game.level}</div>
+      <p className="text-slate-600 mt-3">{game.description}</p>
 
-// Se você tem alias @ → src no vite.config.js:
-import Button from "@/components/ui/Button";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
-import { api } from "@/services/api";
-
-// // OU (sem alias), comente os de cima e descomente estes:
-// // import Button from "../components/ui/Button";
-// // import { Card, CardHeader, CardBody } from "../components/ui/Card";
-// // import { api } from "../services/api";
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          className="px-4 py-2 rounded-xl bg-amber-500 text-white font-medium hover:brightness-110 active:scale-95"
+          onClick={() => alert("Em breve: jogar/preview do jogo")}
+        >
+          Jogar
+        </button>
+        <button
+          className="px-4 py-2 rounded-xl border border-sky-300 text-sky-800 hover:bg-sky-50"
+          onClick={() => alert("Em breve: atribuir a uma criança")}
+        >
+          Atribuir
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Games() {
-  const [searchParams] = useSearchParams();
-  const childId = searchParams.get("child"); // se vier ?child=2, habilita "Atribuir"
-  const [list, setList] = useState([]);
-  const [q, setQ] = useState("");
+  const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
-  const [assigningId, setAssigningId] = useState(null);
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
-      setErr("");
       try {
-        const g = await api.get("/api/games");
-        const arr = Array.isArray(g) ? g : Array.isArray(g?.data) ? g.data : [];
-        setList(arr);
+        const data = await api("/api/games");
+        setRows(Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []));
       } catch (e) {
-        console.error(e);
-        setErr("Não foi possível carregar os jogos.");
+        setErr(e.message || "Falha ao carregar jogos");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return list;
-    return list.filter((g) =>
-      [g.title, g.category, g.level]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(term))
-    );
-  }, [list, q]);
-
-  async function handleAssign(gameId) {
-    if (!childId) return;
-    setAssigningId(gameId);
-    setErr("");
-    setOk("");
-    try {
-      await api.post(`/api/children/${childId}/games`, { game_id: gameId });
-      setOk("Jogo atribuído com sucesso!");
-    } catch (e) {
-      let msg = "Erro ao atribuir jogo.";
-      try {
-        const parsed = JSON.parse(e.message);
-        msg = parsed?.message || msg;
-      } catch {
-        if (typeof e.message === "string" && e.message.length < 300) msg = e.message;
-      }
-      setErr(msg);
-    } finally {
-      setAssigningId(null);
-    }
-  }
+  if (loading) return <div className="p-6">Carregando jogos…</div>;
+  if (err) return <div className="p-6 text-red-600">{err}</div>;
+  if (!rows.length) return <div className="p-6">Nenhum jogo cadastrado.</div>;
 
   return (
-    <div className="mx-auto max-w-6xl p-4">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-slate-800">Jogos</h1>
-              {childId ? (
-                <p className="text-sm text-slate-500">
-                  Modo atribuição para a criança <span className="font-medium">#{childId}</span>
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  Dica: abra <span className="font-mono">/games?child=ID</span> para atribuir jogos.
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Buscar por título, categoria, nível..."
-                className="w-72 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400"
-              />
-              <Link to="/children">
-                <Button variant="ghost">← Voltar</Button>
-              </Link>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardBody>
-          {loading && (
-            <div className="py-10 text-center text-slate-500">Carregando...</div>
-          )}
-
-          {!loading && (err || ok) && (
-            <div className="mb-4">
-              {err && (
-                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-                  {err}
-                </div>
-              )}
-              {ok && (
-                <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-                  {ok}
-                </div>
-              )}
-            </div>
-          )}
-
-          {!loading && !err && (
-            <>
-              {filtered.length === 0 ? (
-                <div className="py-10 text-center text-slate-500">
-                  Nenhum jogo encontrado.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {filtered.map((g) => (
-                    <div
-                      key={g.id}
-                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col"
-                    >
-                      <div className="mb-2">
-                        <div className="text-lg font-semibold text-slate-800">
-                          {g.title}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-600">
-                          Categoria: <span className="font-medium">{g.category}</span>
-                          {" · "}
-                          Nível: <span className="font-medium">{g.level}</span>
-                        </div>
-                      </div>
-
-                      {g.description && (
-                        <p className="text-sm text-slate-600 line-clamp-3">{g.description}</p>
-                      )}
-
-                      <div className="mt-auto pt-4 flex items-center justify-between">
-                        <Link to={childId ? `/children/${childId}/games/${g.id}` : `/games/${g.id}`}>
-                          <Button variant="secondary" size="sm">Detalhes</Button>
-                        </Link>
-
-                        {childId && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleAssign(g.id)}
-                            disabled={assigningId === g.id}
-                          >
-                            {assigningId === g.id ? "Atribuindo..." : "Atribuir"}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </CardBody>
-      </Card>
+    <div className="p-6 grid gap-5 md:grid-cols-2">
+      {rows.map(g => <GameCard key={g.id} game={g} />)}
     </div>
   );
 }

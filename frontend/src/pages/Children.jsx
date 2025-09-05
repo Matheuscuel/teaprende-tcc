@@ -1,93 +1,63 @@
-﻿// frontend/src/pages/Children.jsx
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import Button from "@/components/ui/Button";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
-import { api } from "@/services/api";
+﻿import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api";
 
 export default function Children() {
-  const [items, setItems] = useState([]);
+  const [rows, setRows] = useState([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setErr("");
-      setLoading(true);
-      try {
-        const d = await api.get("/api/children");
-        const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
-        if (!cancelled) setItems(list);
-      } catch {
-        if (!cancelled) setErr("Não foi possível carregar as crianças.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  async function load() {
+    setLoading(true); setErr("");
+    try {
+      const path = q ? `/api/children?q=${encodeURIComponent(q)}` : "/api/children";
+      const data = await api(path);
+      const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      setRows(list);
+    } catch (e) {
+      // se API retornar 204, nosso helper pode lançar — tratamos como vazio
+      setRows([]);
+      if (e?.message && !/204|No Content/i.test(e.message)) setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return items;
-    return items.filter(c =>
-      [c.name, c.gender, String(c.age ?? "")]
-        .filter(Boolean)
-        .some(v => String(v).toLowerCase().includes(term))
-    );
-  }, [items, q]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-50/40 to-white p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header + busca */}
-        <Card>
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-brand-700">Crianças</h1>
-              <p className="text-sm text-slate-500">Gerencie crianças e veja os detalhes.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Buscar por nome, idade, gênero…"
-                className="w-72 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-400"
-              />
-              {/* Botão só visual para a demo */}
-              <Button className="whitespace-nowrap" type="button">+ Nova</Button>
-            </div>
-          </CardHeader>
-        </Card>
+    <div className="p-6 max-w-6xl mx-auto">
+      <div className="flex gap-2 items-center mb-4">
+        <input
+          value={q}
+          onChange={(e)=>setQ(e.target.value)}
+          onKeyDown={(e)=> e.key === "Enter" && load()}
+          placeholder="Buscar por nome…"
+          className="w-full md:w-80 rounded-xl px-4 py-2 border border-slate-300"
+        />
+        <button
+          onClick={load}
+          className="px-4 py-2 rounded-xl bg-sky-600 text-white hover:brightness-110 active:scale-95"
+        >Buscar</button>
+      </div>
 
-        {/* Lista */}
-        {loading ? (
-          <div className="text-slate-600">Carregando…</div>
-        ) : err ? (
-          <div className="text-red-600">{err}</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-slate-600">Nenhum registro encontrado.</div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((c) => (
-              <Card key={c.id}>
-                <CardBody className="space-y-2">
-                  <div className="text-base font-semibold text-slate-800">{c.name}</div>
-                  <div className="text-sm text-slate-500">
-                    {c.age ? `${c.age} anos` : "—"} {c.gender ? `· ${c.gender}` : ""}
-                  </div>
-                  <div className="pt-2">
-                    <Link to={`/children/${c.id}`}>
-                      <Button className="w-full">Ver detalhes</Button>
-                    </Link>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+      {loading && <div>Carregando…</div>}
+      {err && <div className="text-red-600">{err}</div>}
+      {!loading && !rows.length && <div>Nenhuma criança encontrada.</div>}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {rows.map(c => (
+          <div key={c.id}
+            className="rounded-2xl bg-white/95 shadow p-5 hover:shadow-md transition cursor-pointer"
+            onClick={()=>navigate(`/children/${c.id}`)}
+          >
+            <div className="text-lg font-semibold text-sky-900">{c.name}</div>
+            <div className="text-slate-600 mt-1">Idade: {c.age} · Gênero: {c.gender}</div>
+            {c.notes && <div className="text-slate-500 mt-2 text-sm">{c.notes}</div>}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
