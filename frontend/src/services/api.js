@@ -1,16 +1,26 @@
-﻿const API = (import.meta.env.VITE_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
+﻿import axios from "axios";
 
-export default async function api(path, opts = {}) {
+// base SEM /api; você pode configurar VITE_API_BASE no .env do frontend
+const baseURL =
+  (import.meta.env.VITE_API_BASE || "http://localhost:3001").replace(/\/+$/, "");
+
+const api = axios.create({ baseURL });
+
+// Interceptor: injeta token e garante prefixo /api quando a URL iniciar com "/"
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
 
-  const res  = await fetch(API + path, { ...opts, headers });
-  const ctyp = res.headers.get("content-type") || "";
-  const data = ctyp.includes("application/json") ? await res.json() : await res.text();
+  // Se a URL começar com "/", e NÃO começar com "/api", prefixa "/api"
+  if (config.url && config.url.startsWith("/") && !config.url.startsWith("/api")) {
+    config.url = "/api" + config.url;
+  }
+  return config;
+});
 
-  if (!res.ok) throw new Error(data?.message || data?.error || res.statusText);
-  return data;
-}
+export const setToken = (token) => {
+  if (token) localStorage.setItem("token", token);
+  else localStorage.removeItem("token");
+};
 
-export { API };
+export default api;

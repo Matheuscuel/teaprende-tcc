@@ -1,39 +1,14 @@
-﻿/* src/services/session.js */
-function parseJwt(token) {
-  try {
-    if (!token) return null;
-    const base = token.split(".")[1];
-    const json = atob(base.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decodeURIComponent(escape(json)));
-  } catch {
-    return null;
-  }
-}
+﻿import api from "./api";
 
-export function getUser() {
-  try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
+export async function startSession(childId, gameId) {
+  const { data } = await api.post(`/children/${childId}/games/${gameId}/sessions/start`);
+  return data;
 }
-
-export function getRole() {
-  const u = getUser();
-  if (u?.role) return u.role;
-  const payload = parseJwt(localStorage.getItem("token"));
-  return payload?.role ?? null;
+export async function addEvent(sessionId, type, payload = {}) {
+  const { data } = await api.post(`/game-sessions/${sessionId}/events`, { type, payload });
+  return data;
 }
-
-export function setUserFromLogin(data = {}) {
-  const t = localStorage.getItem("token");
-  const payload = parseJwt(t) || {};
-  const user = {
-    id: data.id ?? payload.id ?? null,
-    email: data.email ?? payload.email ?? null,
-    role: data.role ?? payload.role ?? null,
-  };
-  localStorage.setItem("user", JSON.stringify(user));
-  return user;
-}
-
-export function logout() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
+export async function finishSession(sessionId, body) {
+  const { data } = await api.post(`/game-sessions/${sessionId}/finish`, body);
+  return data;
 }

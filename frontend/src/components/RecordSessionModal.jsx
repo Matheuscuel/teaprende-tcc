@@ -1,75 +1,103 @@
-﻿import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import api from "../services/api";
+﻿import { useEffect, useState } from "react";
+import { startSession, addEvent, finishSession } from "../services/session";
 
-export default function RecordSessionModal({
-  isOpen,
-  onClose,
-  childId,
-  onSessionSaved,
-  onError
-}) {
-  const [notes, setNotes] = useState("");
-  const [duration, setDuration] = useState("");
+export default function RecordSessionModal({ open, onClose, child, game, onDone }) {
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  const handleSubmit = async () => {
-    if (!notes || !duration) {
-      onError && onError("Preencha todos os campos!");
-      return;
-    }
+  const [score, setScore] = useState(0);
+  const [accuracy, setAccuracy] = useState(0.9);
+  const [duration, setDuration] = useState(120);
+  const [notes, setNotes] = useState("");
 
+  useEffect(() => {
+    if (!open) { setSession(null); setMsg(""); }
+  }, [open]);
+
+  const handleStart = async () => {
     try {
       setLoading(true);
-      const payload = { notes, duration: Number(duration) };
-      const url = `/children/${childId}/sessions`;
-      console.log("POST", url, payload);
-      await api.post(url, payload);
-      onSessionSaved && onSessionSaved();
-      setNotes(""); setDuration("");
-      onClose && onClose();
-    } catch (err) {
-      console.error("POST /children/:id/sessions failed:", err);
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        "Erro ao registrar sessão!";
-      onError && onError(msg);
-    } finally {
-      setLoading(false);
-    }
+      const s = await startSession(child.id, game.id);
+      setSession(s);
+      setMsg("Sessão iniciada!");
+    } catch (e) {
+      setMsg(e?.response?.data?.error || "Erro ao iniciar sessão");
+    } finally { setLoading(false); }
   };
 
+  const handleEvent = async (type) => {
+    if (!session) return;
+    try {
+      setLoading(true);
+      await addEvent(session.id, type, { at: Date.now() });
+      setMsg(`Evento '${type}' registrado`);
+    } catch (e) {
+      setMsg(e?.response?.data?.error || "Erro ao registrar evento");
+    } finally { setLoading(false); }
+  };
+
+  const handleFinish = async () => {
+    if (!session) return;
+    try {
+      setLoading(true);
+      await finishSession(session.id, {
+        outcome: "completed",
+        score: Number(score),
+        accuracy: Number(accuracy),
+        duration_sec: Number(duration),
+        notes,
+      });
+      setMsg("Sessão finalizada!");
+      onDone?.();
+      setTimeout(() => onClose?.(), 600);
+    } catch (e) {
+      setMsg(e?.response?.data?.error || "Erro ao finalizar sessão");
+    } finally { setLoading(false); }
+  };
+
+  if (!open) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div className="fixed inset-0 z-[9999] flex items-center justify-center" role="dialog" aria-modal="true"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
-          <motion.div className="relative bg-white p-6 rounded-2xl shadow-2xl w-96"
-            initial={{ scale: 0.95, y: 10, opacity: 0 }}
-            animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.97, y: 6, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 22 }}>
-            <h2 className="text-xl font-bold mb-4">Registrar Sessão</h2>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Anotações</label>
-              <textarea className="w-full border p-2 rounded" rows="3" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Escreva observações da sessão..." />
+    <div style={s.backdrop}>
+      <div style={s.modal}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <h3>Registrar Sessão</h3>
+          <button onClick={onClose} style={s.linkBtn}>x</button>
+        </div>
+        <p style={{ marginTop:4, color:"#6b7280" }}>
+          Criança: <b>{child?.name}</b> — Jogo: <b>{game?.title}</b>
+        </p>
+
+        {!session ? (
+          <button onClick={handleStart} disabled={loading} style={s.primary}>Iniciar Sessão</button>
+        ) : (
+          <>
+            <div style={{ display:"flex", gap:8, marginTop:12 }}>
+              <button onClick={() => handleEvent("hit")} disabled={loading} style={s.secondary}>Hit</button>
+              <button onClick={() => handleEvent("miss")} disabled={loading} style={s.secondary}>Miss</button>
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Duração (minutos)</label>
-              <input type="number" className="w-full border p-2 rounded" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="Ex: 45" min="1" />
+
+            <div style={{ marginTop:16, display:"grid", gap:8 }}>
+              <label>Score <input type="number" value={score} onChange={e=>setScore(e.target.value)} /></label>
+              <label>Accuracy (0..1) <input type="number" step="0.01" value={accuracy} onChange={e=>setAccuracy(e.target.value)} /></label>
+              <label>Duração (seg) <input type="number" value={duration} onChange={e=>setDuration(e.target.value)} /></label>
+              <label>Notas <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} /></label>
+              <button onClick={handleFinish} disabled={loading} style={s.primary}>Finalizar Sessão</button>
             </div>
-            <div className="flex justify-end gap-2">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 transition disabled:opacity-60" onClick={onClose} disabled={loading}>Cancelar</button>
-              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-60" onClick={handleSubmit} disabled={loading}>
-                {loading ? "Salvando..." : "Salvar"}
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </>
+        )}
+
+        {msg && <div style={{ marginTop:12 }}>{msg}</div>}
+      </div>
+    </div>
   );
 }
+
+const s = {
+  backdrop:{ position:"fixed", inset:0, background:"rgba(0,0,0,.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
+  modal:{ background:"#fff", width:420, borderRadius:12, padding:16, boxShadow:"0 10px 40px rgba(0,0,0,.2)" },
+  primary:{ background:"#4f46e5", color:"#fff", border:"none", padding:"8px 12px", borderRadius:8, cursor:"pointer" },
+  secondary:{ background:"#f3f4f6", border:"1px solid #e5e7eb", padding:"8px 12px", borderRadius:8, cursor:"pointer" },
+  linkBtn:{ background:"transparent", border:"none", cursor:"pointer", fontSize:18 }
+};

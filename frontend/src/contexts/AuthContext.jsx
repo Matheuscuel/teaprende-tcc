@@ -1,63 +1,88 @@
-"use client"
+﻿import { createContext, useContext, useMemo, useState } from "react";
+import api, { setToken } from "../services/api";
 
-import { createContext, useState, useEffect, useContext } from "react"
-import api from "../services/api"
-
-const AuthContext = createContext({})
-
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadStorageData() {
-      const storedToken = localStorage.getItem("@TEAprende:token")
-      const storedUser = localStorage.getItem("@TEAprende:user")
-
-      if (storedToken && storedUser) {
-        api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`
-        setUser(JSON.parse(storedUser))
-      }
-
-      setLoading(false)
-    }
-
-    loadStorageData()
-  }, [])
-
-  async function signIn(email, password) {
-    try {
-      const response = await api.post("/auth/login", {
-        email,
-        password,
-      })
-
-      const { token, user } = response.data
-
-      localStorage.setItem("@TEAprende:token", token)
-      localStorage.setItem("@TEAprende:user", JSON.stringify(user))
-
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`
-
-      setUser(user)
-    } catch (error) {
-      throw error
-    }
+// decodifica JWT (sem validar) para pegar o payload
+function parseJwt(token) {
+  try {
+    const base = token.split(".")[1];
+    const json = decodeURIComponent(
+      atob(base.replace(/-/g, "+").replace(/_/g, "/"))
+        .split("")
+        .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
   }
+}
 
-  function signOut() {
-    localStorage.removeItem("@TEAprende:token")
-    localStorage.removeItem("@TEAprende:user")
-    setUser(null)
+function userFromToken(token) {
+  const p = parseJwt(token);
+  if (!p) return null;
+  return {
+    id: p.id || p.userId || p.sub,
+    name: p.name || "",
+    email: p.email || "",
+    role: (p.role || p.perfil || "").toLowerCase(),
+  };
+}
+
+export function defaultRouteForRole(role) {
+  switch ((role || "").toLowerCase()) {
+    case "admin":        return "/admin";
+    case "terapeuta":
+    case "therapist":    return "/therapist";
+    case "professor":
+    case "teacher":      return "/teacher";
+    case "responsavel":
+    case "responsável":
+    case "parent":       return "/parent";
+    default:             return "/children";
   }
+}
 
-  return (
-    <AuthContext.Provider value={{ signed: !!user, user, loading, signIn, signOut }}>{children}</AuthContext.Provider>
-  )
+const AuthCtx = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [tokenState, setTokenState] = useState(() => localStorage.getItem("token") || null);
+  const [user, setUser] = useState(() => (tokenState ? userFromToken(tokenState) : null));
+
+  const loginWithCredentials = async (email, password) => {
+    const { data } = await api.post("/auth/login", { email, password });
+    acceptToken(data.token);
+    return userFromToken(data.token);
+  };
+
+  const acceptToken = (token) => {
+    setToken(token);
+    setTokenState(token);
+    const u = userFromToken(token);
+    setUser(u);
+    return u;
+  };
+
+  const logout = () => {
+    setToken(null);
+    setTokenState(null);
+    setUser(null);
+  };
+
+  const value = useMemo(() => ({
+    token: tokenState,
+    user,
+    role: user?.role || null,
+    isLogged: !!tokenState,
+    hasRole: (roles) => !!user && roles.map(r => r.toLowerCase()).includes((user.role||"").toLowerCase()),
+    loginWithCredentials,
+    acceptToken,
+    logout,
+    defaultRouteForRole
+  }), [tokenState, user]);
+
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  return context
+  return useContext(AuthCtx);
 }
-

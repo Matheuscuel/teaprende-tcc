@@ -1,31 +1,70 @@
-﻿import { NavLink } from "react-router-dom";
-
-const linkBase =
-  "px-3 py-2 rounded-xl text-white/90 hover:bg-white/10 transition";
-const active =
-  "bg-white/20 text-white";
+﻿import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Nav() {
-  const Item = ({ to, label }) => (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `${linkBase} ${isActive ? active : ""}`
-      }
-    >
-      {label}
-    </NavLink>
-  );
+  const navigate = useNavigate();
+  const { isLogged, role, logout } = useAuth();
+
+  const onLogout = () => { logout(); navigate("/login"); };
+
+  // menus por papel
+  const Menu = () => {
+    if (!isLogged) return null;
+    const r = (role || "").toLowerCase();
+    switch (r) {
+      case "admin":
+        return (<>
+          <Link to="/admin">Admin</Link>
+          <Link to="/games">Jogos</Link>
+          <Link to="/children">Crianças</Link>
+        </>);
+      case "terapeuta":
+      case "therapist":
+        return (<>
+          <Link to="/therapist">Painel</Link>
+          <Link to="/children">Crianças</Link>
+          <Link to="/games">Jogos</Link>
+        </>);
+      case "professor":
+      case "teacher":
+        return (<>
+          <Link to="/teacher">Painel</Link>
+          <Link to="/children">Crianças</Link>
+        </>);
+      case "responsavel":
+      case "responsável":
+      case "parent":
+        return (<>
+          <Link to="/parent">Início</Link>
+        </>);
+      default:
+        return (<>
+          <Link to="/children">Crianças</Link>
+        </>);
+    }
+  };
 
   return (
-    <nav className="w-full bg-sky-800">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-        <div className="font-bold text-white text-lg mr-3">TEAprende</div>
-        <Item to="/" label="Painel" />
-        <Item to="/games" label="Jogos" />
-        <Item to="/tasks" label="Tarefas" />
-        <Item to="/children" label="Crianças" />
+    <nav style={styles.nav}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <b>TEAprende</b>
+        <Menu />
+      </div>
+      <div>
+        {isLogged ? (
+          <button onClick={onLogout} style={styles.btn}>Sair</button>
+        ) : (
+          <Link to="/login">Entrar</Link>
+        )}
       </div>
     </nav>
   );
 }
+
+const styles = {
+  nav: {
+    height: 56, padding: "0 16px", borderBottom: "1px solid #e5e7eb",
+    display: "flex", alignItems: "center", justifyContent: "space-between"
+  },
+  btn: { background: "#ef4444", color: "#fff", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" }
+};
