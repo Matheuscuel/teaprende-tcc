@@ -39,3 +39,19 @@ coverage/
 
 # Outros temporários
 *.tmp
+# Node
+**/node_modules/
+**/dist/
+**/coverage/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Prisma local
+prisma/.env
+
+# SO / lixo
+.DS_Store
+Thumbs.db
