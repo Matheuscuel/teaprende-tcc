@@ -1,10 +1,10 @@
-// src/routes/childrenPerformance.js
+﻿// src/routes/childrenPerformance.js
 const express = require("express");
 const router = express.Router();
 const { prisma } = require("../db");
 const { authMiddleware } = require("../middleware/auth");
 
-// helper de permissão contextual
+// helper de permissÃ£o contextual
 function canSeeChild(user, child) {
   if (!user || !child) return false;
   const role = String(user.role || "").toLowerCase();
@@ -14,22 +14,22 @@ function canSeeChild(user, child) {
 }
 
 // GET /api/children/:id/performance
-// resumo por jogo (usa a view se existir; senão, calcula via GROUP BY)
+// resumo por jogo (usa a view se existir; senÃ£o, calcula via GROUP BY)
 router.get("/:id/performance", authMiddleware, async (req, res) => {
   try {
     const userRole = req.userRole ?? req.user?.role;
     const userId   = req.userId   ?? req.user?.id;
-    if (!ALLOWED_ROLES.has(userRole)) return res.status(403).json({ error: "Sem permissão" });
+    if (!ALLOWED_ROLES.has(userRole)) return res.status(403).json({ error: "Sem permissÃ£o" });
 
     const childId = Number(req.params.id);
-    if (!Number.isInteger(childId)) return res.status(400).json({ error: "childId inválido" });
+    if (!Number.isInteger(childId)) return res.status(400).json({ error: "childId invÃ¡lido" });
 
     const c = await req.db.query("SELECT id, name, owner_id FROM children WHERE id=$1", [childId]);
-    if (c.rowCount === 0) return res.status(404).json({ error: "Criança não encontrada" });
+    if (c.rowCount === 0) return res.status(404).json({ error: "CrianÃ§a nÃ£o encontrada" });
     const child = c.rows[0];
 
     if (!canManageChild(userRole, userId, child)) {
-      return res.status(403).json({ error: "Sem permissão para ver o desempenho desta criança" });
+      return res.status(403).json({ error: "Sem permissÃ£o para ver o desempenho desta crianÃ§a" });
     }
 
     // agregado direto (sem VIEW)
@@ -72,8 +72,8 @@ router.get("/:id/performance/:gameId/timeseries", authMiddleware, async (req, re
       where: { id: childId },
       select: { id: true, name: true, parent_id: true },
     });
-    if (!child) return res.status(404).json({ message: "Criança não encontrada" });
-    if (!canSeeChild(req.user, child)) return res.status(403).json({ message: "Sem permissão" });
+    if (!child) return res.status(404).json({ message: "CrianÃ§a nÃ£o encontrada" });
+    if (!canSeeChild(req.user, child)) return res.status(403).json({ message: "Sem permissÃ£o" });
 
     const from = req.query.from ? new Date(req.query.from) : undefined;
     const to   = req.query.to   ? new Date(req.query.to)   : undefined;
@@ -103,7 +103,7 @@ router.get("/:id/performance/:gameId/timeseries", authMiddleware, async (req, re
     });
   } catch (err) {
     console.error("[GET /children/:id/performance/:gameId/timeseries] error:", err);
-    return res.status(500).json({ message: "Erro ao buscar série temporal" });
+    return res.status(500).json({ message: "Erro ao buscar sÃ©rie temporal" });
   }
 });
 
@@ -120,15 +120,15 @@ router.post("/:id/games/:gameId/progress", authMiddleware, async (req, res) => {
     }
     const s = Number(score);
     if (!Number.isFinite(s) || s < 0 || s > 100) {
-      return res.status(400).json({ message: "score deve ser número entre 0 e 100" });
+      return res.status(400).json({ message: "score deve ser nÃºmero entre 0 e 100" });
     }
 
     const child = await prisma.children.findUnique({
       where: { id: childId },
       select: { id: true, name: true, parent_id: true },
     });
-    if (!child) return res.status(404).json({ message: "Criança não encontrada" });
-    if (!canSeeChild(req.user, child)) return res.status(403).json({ message: "Sem permissão" });
+    if (!child) return res.status(404).json({ message: "CrianÃ§a nÃ£o encontrada" });
+    if (!canSeeChild(req.user, child)) return res.status(403).json({ message: "Sem permissÃ£o" });
 
     const created = await prisma.game_progress.create({
       data: {
@@ -149,3 +149,4 @@ router.post("/:id/games/:gameId/progress", authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+

@@ -19,3 +19,4 @@ router.get("/", authMiddleware, async (_req, res) => {
 });
 
 module.exports = router;
+

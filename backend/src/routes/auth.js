@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
@@ -9,8 +9,8 @@ const router = express.Router();
 router.post(
   "/login",
   [
-    body("email").isEmail().withMessage("Email inválido"),
-    body("password").isLength({ min: 3 }).withMessage("Senha obrigatória"),
+    body("email").isEmail().withMessage("Email invÃ¡lido"),
+    body("password").isLength({ min: 3 }).withMessage("Senha obrigatÃ³ria"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -19,10 +19,10 @@ router.post(
     try {
       const { email, password } = req.body;
       const user = await prisma.users.findUnique({ where: { email } });
-      if (!user) return res.status(401).json({ message: "Credenciais inválidas" });
+      if (!user) return res.status(401).json({ message: "Credenciais invÃ¡lidas" });
 
       const ok = await bcrypt.compare(password, user.password);
-      if (!ok) return res.status(401).json({ message: "Credenciais inválidas" });
+      if (!ok) return res.status(401).json({ message: "Credenciais invÃ¡lidas" });
 
       const payload = { id: user.id, email: user.email, role: user.role };
       const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -40,10 +40,10 @@ router.post(
 router.post(
   "/register",
   [
-    body("name").notEmpty().withMessage("Nome é obrigatório"),
-    body("email").isEmail().withMessage("Email inválido"),
+    body("name").notEmpty().withMessage("Nome Ã© obrigatÃ³rio"),
+    body("email").isEmail().withMessage("Email invÃ¡lido"),
     body("password").isLength({ min: 6 }).withMessage("Senha com 6+ caracteres"),
-    body("role").isIn(["terapeuta", "professor", "responsavel", "crianca", "admin"]).withMessage("Role inválida"),
+    body("role").isIn(["terapeuta", "professor", "responsavel", "crianca", "admin"]).withMessage("Role invÃ¡lida"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -52,7 +52,7 @@ router.post(
     try {
       const { name, email, password, role } = req.body;
       const exists = await prisma.users.findUnique({ where: { email } });
-      if (exists) return res.status(409).json({ message: "Email já cadastrado" });
+      if (exists) return res.status(409).json({ message: "Email jÃ¡ cadastrado" });
 
       const hash = await bcrypt.hash(password, 10);
       const user = await prisma.users.create({
@@ -67,3 +67,4 @@ router.post(
 );
 
 module.exports = router;
+

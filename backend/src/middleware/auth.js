@@ -1,21 +1,18 @@
 ﻿const jwt = require("jsonwebtoken");
 
-function authMiddleware(req, res, next) {
-  const header = req.headers.authorization || "";
-  const parts = header.split(" ");
-  const hasBearer = parts.length === 2 && /^Bearer$/i.test(parts[0]);
-  const token = hasBearer ? parts[1] : null;
+function auth(req, res, next) {
+  const h = req.headers["authorization"] || "";
+  const [, token] = h.split(" ");
+  if (!token) return res.status(401).json({ error: "Token ausente" });
 
-  if (!token) {
-    return res.status(401).json({ error: true, message: "Token não fornecido ou inválido" });
-  }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, email, role }
+    const secret = process.env.JWT_SECRET || "devsecret";
+    const payload = jwt.verify(token, secret);
+    req.user = { id: payload.id, role: payload.role };
     return next();
-  } catch {
-    return res.status(401).json({ error: true, message: "Token inválido" });
+  } catch (e) {
+    return res.status(401).json({ error: "Token inválido" });
   }
 }
 
-module.exports = { authMiddleware };
+module.exports = { auth };

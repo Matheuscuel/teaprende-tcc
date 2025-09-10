@@ -1,6 +1,6 @@
-const db = require('../database/db');
+﻿const db = require('../db/db');
 
-// CRIAR CRIANÇA
+// CRIAR CRIANÃ‡A
 // services/childrenService.js
 async function createChild({ name, birth_date, user_id, owner_id }, requester) {
   const ownerId = requester?.role === 'responsavel' ? requester.id : (owner_id ?? null);
@@ -17,7 +17,7 @@ async function createChild({ name, birth_date, user_id, owner_id }, requester) {
 }
 
 
-// LISTAR (guardian vê só as suas; admin/teacher/therapist vê todas)
+// LISTAR (guardian vÃª sÃ³ as suas; admin/teacher/therapist vÃª todas)
 async function listChildren({ requester, page = 1, pageSize = 20 }) {
   const q = db('children').select('*').orderBy('created_at', 'desc')
     .limit(pageSize).offset((page - 1) * pageSize);
@@ -52,7 +52,7 @@ async function assignGames(childId, gameIds, assignedBy) {
   return rows;
 }
 
-// LISTAR ATRIBUIÇÕES
+// LISTAR ATRIBUIÃ‡Ã•ES
 async function getAssignments(childId) {
   return db('children_games as cg')
     .join('games as g', 'g.id', 'cg.game_id')
@@ -62,7 +62,7 @@ async function getAssignments(childId) {
     .orderBy('cg.assigned_at', 'desc');
 }
 
-// PERFORMANCE (agregado simples + últimas sessões)
+// PERFORMANCE (agregado simples + Ãºltimas sessÃµes)
 async function getPerformance(childId, { from, to }) {
   const sessionsQ = db('game_sessions as gs')
     .join('games as g', 'g.id', 'gs.game_id')
@@ -93,4 +93,5 @@ module.exports = {
   createChild, listChildren, getChildById,
   assignGames, getAssignments, getPerformance
 };
+
 
