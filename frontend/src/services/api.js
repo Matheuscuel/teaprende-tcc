@@ -1,26 +1,31 @@
 ﻿import axios from "axios";
 
-// base SEM /api; você pode configurar VITE_API_BASE no .env do frontend
-const baseURL =
-  (import.meta.env.VITE_API_BASE || "http://localhost:3001").replace(/\/+$/, "");
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001/api";
 
-const api = axios.create({ baseURL });
+// instancia com base /api
+const api = axios.create({ baseURL: API_BASE });
 
-// Interceptor: injeta token e garante prefixo /api quando a URL iniciar com "/"
+// remove /api/ duplicado do começo da URL (ex.: /api/children -> /children)
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-
-  // Se a URL começar com "/", e NÃO começar com "/api", prefixa "/api"
-  if (config.url && config.url.startsWith("/") && !config.url.startsWith("/api")) {
-    config.url = "/api" + config.url;
+  if (typeof config.url === "string" && config.url.startsWith("/")) {
+    config.url = config.url.replace(/^\/api\//, "/");
   }
   return config;
 });
 
-export const setToken = (token) => {
-  if (token) localStorage.setItem("token", token);
-  else localStorage.removeItem("token");
-};
+export function setToken(token) {
+  if (token) {
+    localStorage.setItem("token", token);
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  } else {
+    localStorage.removeItem("token");
+    delete api.defaults.headers.common["Authorization"];
+  }
+}
+
+// carrega token ao iniciar
+const t = localStorage.getItem("token");
+if (t) setToken(t);
 
 export default api;
+

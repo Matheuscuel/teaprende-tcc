@@ -1,103 +1,129 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { startSession, addEvent, finishSession } from "../services/session";
+import Toast from "./Toast";
 
-export default function RecordSessionModal({ open, onClose, child, game, onDone }) {
-  const [session, setSession] = useState(null);
+export default function RecordSessionModal({ open, onClose, childId, game }) {
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
-
+  const [session, setSession] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [seconds, setSeconds] = useState(0);
   const [score, setScore] = useState(0);
-  const [accuracy, setAccuracy] = useState(0.9);
-  const [duration, setDuration] = useState(120);
   const [notes, setNotes] = useState("");
+  const [toast, setToast] = useState({ kind:"ok", msg:"" });
+  const timerRef = useRef(null);
+
+  const accuracy = useMemo(() => {
+    if (events.length === 0) return 0;
+    const hits = events.filter(e=>e.type==="hit").length;
+    return +(hits / events.length).toFixed(2);
+  }, [events]);
 
   useEffect(() => {
-    if (!open) { setSession(null); setMsg(""); }
+    if (!open) {
+      // reset ao fechar
+      clearInterval(timerRef.current);
+      setSession(null); setEvents([]); setSeconds(0); setScore(0); setNotes("");
+      setToast({kind:"ok", msg:""});
+    }
   }, [open]);
 
-  const handleStart = async () => {
+  async function handleStart() {
     try {
       setLoading(true);
-      const s = await startSession(child.id, game.id);
+      const s = await startSession(childId, game.id);
       setSession(s);
-      setMsg("Sessão iniciada!");
+      timerRef.current = setInterval(()=>setSeconds(v=>v+1), 1000);
     } catch (e) {
-      setMsg(e?.response?.data?.error || "Erro ao iniciar sessão");
-    } finally { setLoading(false); }
-  };
+      setToast({kind:"error", msg: e?.response?.data?.error || "Erro ao iniciar sessão"});
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const handleEvent = async (type) => {
+  async function pushEvent(type) {
+    if (!session) return;
+    try {
+      const ev = await addEvent(session.id, type, { at: seconds });
+      setEvents(prev => [...prev, ev]);
+      if (type === "hit") setScore(s => s + 10);
+    } catch (e) {
+      setToast({kind:"error", msg: e?.response?.data?.error || "Erro ao registrar evento"});
+    }
+  }
+
+  async function handleFinish() {
     if (!session) return;
     try {
       setLoading(true);
-      await addEvent(session.id, type, { at: Date.now() });
-      setMsg(`Evento '${type}' registrado`);
-    } catch (e) {
-      setMsg(e?.response?.data?.error || "Erro ao registrar evento");
-    } finally { setLoading(false); }
-  };
-
-  const handleFinish = async () => {
-    if (!session) return;
-    try {
-      setLoading(true);
+      clearInterval(timerRef.current);
       await finishSession(session.id, {
         outcome: "completed",
-        score: Number(score),
-        accuracy: Number(accuracy),
-        duration_sec: Number(duration),
-        notes,
+        score,
+        accuracy,
+        duration_sec: seconds,
+        notes
       });
-      setMsg("Sessão finalizada!");
-      onDone?.();
-      setTimeout(() => onClose?.(), 600);
+      setToast({ kind:"ok", msg:"Sessão finalizada!" });
+      setTimeout(()=> onClose?.(true), 600); // true => sucesso
     } catch (e) {
-      setMsg(e?.response?.data?.error || "Erro ao finalizar sessão");
-    } finally { setLoading(false); }
-  };
+      setToast({kind:"error", msg: e?.response?.data?.error || "Erro ao finalizar"});
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (!open) return null;
 
   return (
-    <div style={s.backdrop}>
-      <div style={s.modal}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <h3>Registrar Sessão</h3>
-          <button onClick={onClose} style={s.linkBtn}>x</button>
-        </div>
-        <p style={{ marginTop:4, color:"#6b7280" }}>
-          Criança: <b>{child?.name}</b> — Jogo: <b>{game?.title}</b>
-        </p>
+    <div style={sx.backdrop} onClick={()=>onClose?.()}>
+      <div style={sx.modal} onClick={(e)=>e.stopPropagation()}>
+        <h3 style={{marginTop:0}}>Sessão — {game?.title}</h3>
 
         {!session ? (
-          <button onClick={handleStart} disabled={loading} style={s.primary}>Iniciar Sessão</button>
+          <button disabled={loading} onClick={handleStart} style={sx.btnPrimary}>
+            {loading ? "Iniciando..." : "Iniciar sessão"}
+          </button>
         ) : (
           <>
-            <div style={{ display:"flex", gap:8, marginTop:12 }}>
-              <button onClick={() => handleEvent("hit")} disabled={loading} style={s.secondary}>Hit</button>
-              <button onClick={() => handleEvent("miss")} disabled={loading} style={s.secondary}>Miss</button>
+            <div style={sx.row}>
+              <div><b>Tempo:</b> {seconds}s</div>
+              <div><b>Eventos:</b> {events.length} (hits {events.filter(e=>e.type==="hit").length})</div>
+              <div><b>Score:</b> {score}</div>
+              <div><b>Accuracy:</b> {accuracy}</div>
             </div>
 
-            <div style={{ marginTop:16, display:"grid", gap:8 }}>
-              <label>Score <input type="number" value={score} onChange={e=>setScore(e.target.value)} /></label>
-              <label>Accuracy (0..1) <input type="number" step="0.01" value={accuracy} onChange={e=>setAccuracy(e.target.value)} /></label>
-              <label>Duração (seg) <input type="number" value={duration} onChange={e=>setDuration(e.target.value)} /></label>
-              <label>Notas <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} /></label>
-              <button onClick={handleFinish} disabled={loading} style={s.primary}>Finalizar Sessão</button>
+            <div style={{display:"flex", gap:10, margin:"10px 0 14px"}}>
+              <button onClick={()=>pushEvent("hit")} style={sx.btnHit}>Hit</button>
+              <button onClick={()=>pushEvent("miss")} style={sx.btnMiss}>Miss</button>
+            </div>
+
+            <div style={{display:"flex", flexDirection:"column", gap:6}}>
+              <label>Observações</label>
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} style={sx.textarea} />
+            </div>
+
+            <div style={{display:"flex", gap:10, marginTop:12}}>
+              <button onClick={handleFinish} disabled={loading} style={sx.btnPrimary}>
+                {loading ? "Finalizando..." : "Finalizar sessão"}
+              </button>
+              <button onClick={()=>onClose?.()} style={sx.btnGhost}>Cancelar</button>
             </div>
           </>
         )}
-
-        {msg && <div style={{ marginTop:12 }}>{msg}</div>}
       </div>
+      <Toast kind={toast.kind} message={toast.msg} onClose={()=>setToast({kind:"ok", msg:""})} />
     </div>
   );
 }
 
-const s = {
-  backdrop:{ position:"fixed", inset:0, background:"rgba(0,0,0,.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 },
-  modal:{ background:"#fff", width:420, borderRadius:12, padding:16, boxShadow:"0 10px 40px rgba(0,0,0,.2)" },
-  primary:{ background:"#4f46e5", color:"#fff", border:"none", padding:"8px 12px", borderRadius:8, cursor:"pointer" },
-  secondary:{ background:"#f3f4f6", border:"1px solid #e5e7eb", padding:"8px 12px", borderRadius:8, cursor:"pointer" },
-  linkBtn:{ background:"transparent", border:"none", cursor:"pointer", fontSize:18 }
+const sx = {
+  backdrop:{position:"fixed", inset:0, background:"rgba(0,0,0,.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:30},
+  modal:{width:560, maxWidth:"92vw", background:"#fff", borderRadius:12, padding:16, boxShadow:"0 20px 80px rgba(0,0,0,.3)"},
+  row:{display:"flex", gap:12, flexWrap:"wrap", background:"#f8fafc", padding:"8px 10px", borderRadius:8, border:"1px solid #e5e7eb"},
+  textarea:{border:"1px solid #cbd5e1", borderRadius:8, padding:"8px 10px"},
+  btnPrimary:{background:"#0ea5e9", color:"#fff", border:"none", padding:"10px 12px", borderRadius:10, cursor:"pointer"},
+  btnGhost:{background:"#f1f5f9", color:"#0f172a", border:"1px solid #e5e7eb", padding:"10px 12px", borderRadius:10, cursor:"pointer"},
+  btnHit:{background:"#16a34a", color:"#fff", border:"none", padding:"10px 12px", borderRadius:10, cursor:"pointer"},
+  btnMiss:{background:"#ef4444", color:"#fff", border:"none", padding:"10px 12px", borderRadius:10, cursor:"pointer"},
 };
+

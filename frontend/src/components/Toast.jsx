@@ -1,24 +1,17 @@
-﻿import React from "react";
-
-export default function Toast({ open, message, type = "success", onClose }) {
-  if (!open) return null;
-
-  const color =
-    type === "success" ? "bg-green-600" :
-    type === "error" ? "bg-red-600" :
-    "bg-gray-800";
-
+﻿export default function Toast({ kind="ok", message="", onClose }) {
+  if (!message) return null;
+  const bg = kind === "error" ? "#fee2e2" : "#dcfce7";
+  const fg = kind === "error" ? "#991b1b" : "#166534";
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[10000]">
-      <div className={`${color} text-white px-4 py-2 rounded-xl shadow-lg min-w-60 flex items-center gap-3`}>
-        <span className="font-medium">{message}</span>
-        <button
-          className="ml-2 px-2 py-1 rounded bg-black/20 hover:bg-black/30 transition"
-          onClick={onClose}
-        >
-          Fechar
-        </button>
-      </div>
+    <div style={{
+      position:"fixed", right:16, bottom:16, background:bg, color:fg,
+      padding:"10px 12px", borderRadius:10, boxShadow:"0 10px 30px rgba(0,0,0,.2)", zIndex:50
+    }}
+      onClick={onClose}
+      title="Fechar"
+    >
+      {message}
     </div>
   );
 }
+

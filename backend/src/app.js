@@ -1,32 +1,21 @@
 ﻿const express = require("express");
 const cors = require("cors");
 
+const authRoutes = require("../routes/auth");
+const gameRoutes = require("../routes/gameRoutes");
+const childrenRoutes = require("../routes/children");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Rotas
-const authRoutes = require("../routes/auth");
-const childrenRoutes = require("../routes/children");
-const gameRoutes = require("../routes/gameRoutes");
-
-// 1º Auth (público)
-app.use("/api", authRoutes);
-
-// 2º Children (público por enquanto)
-app.use("/api/children", childrenRoutes);
-
-// 3º Módulo 3 (GET /games público; demais com JWT)
-app.use("/api", gameRoutes);
-
-// (opcional) dashboard se existir
-try {
-  app.use("/api/dashboard", require("./routes/dashboard"));
-} catch { /* ignore se não existir */ }
-
-// health checks
+// saúde
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
-app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// rotas
+app.use("/api", authRoutes);           // /api/auth/login, /api/auth/register
+app.use("/api", gameRoutes);           // /api/games, /api/children/:id/games/*, sessions/progress
+app.use("/api/children", childrenRoutes); // /api/children, /api/children/:id
 
 module.exports = app;

@@ -92,3 +92,4 @@ const s = {
   err:{marginTop:10, background:"#fee2e2", color:"#b91c1c", padding:"8px 10px", borderRadius:8},
   ok:{marginTop:10, background:"#dcfce7", color:"#166534", padding:"8px 10px", borderRadius:8}
 };
+

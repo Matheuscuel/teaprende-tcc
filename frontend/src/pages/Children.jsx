@@ -1,64 +1,41 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import api from "../services/api";
 
 export default function Children() {
-  const [rows, setRows] = useState([]);
-  const [q, setQ] = useState("");
+  const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const navigate = useNavigate();
 
-  async function load() {
-    setLoading(true); setErr("");
-    try {
-      const path = q ? `/api/children?q=${encodeURIComponent(q)}` : "/api/children";
-      const data = await api(path);
-      const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-      setRows(list);
-    } catch (e) {
-      // se API retornar 204, nosso helper pode lançar — tratamos como vazio
-      setRows([]);
-      if (e?.message && !/204|No Content/i.test(e.message)) setErr(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    setErr("");
+    api.get("/children")
+      .then(r => setList(r.data))
+      .catch(e => setErr(e?.response?.data?.error || "Erro ao carregar crianças"))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  if (loading) return <div style={{padding:16}}>Carregando...</div>;
+  if (err) return <div style={{padding:16, color:"#b91c1c"}}>{err}</div>;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex gap-2 items-center mb-4">
-        <input
-          value={q}
-          onChange={(e)=>setQ(e.target.value)}
-          onKeyDown={(e)=> e.key === "Enter" && load()}
-          placeholder="Buscar por nome…"
-          className="w-full md:w-80 rounded-xl px-4 py-2 border border-slate-300"
-        />
-        <button
-          onClick={load}
-          className="px-4 py-2 rounded-xl bg-sky-600 text-white hover:brightness-110 active:scale-95"
-        >Buscar</button>
-      </div>
-
-      {loading && <div>Carregando…</div>}
-      {err && <div className="text-red-600">{err}</div>}
-      {!loading && !rows.length && <div>Nenhuma criança encontrada.</div>}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {rows.map(c => (
-          <div key={c.id}
-            className="rounded-2xl bg-white/95 shadow p-5 hover:shadow-md transition cursor-pointer"
-            onClick={()=>navigate(`/children/${c.id}`)}
-          >
-            <div className="text-lg font-semibold text-sky-900">{c.name}</div>
-            <div className="text-slate-600 mt-1">Idade: {c.age} · Gênero: {c.gender}</div>
-            {c.notes && <div className="text-slate-500 mt-2 text-sm">{c.notes}</div>}
-          </div>
-        ))}
-      </div>
+    <div style={{padding:16}}>
+      <h2>Crianças</h2>
+      {list.length === 0 ? (
+        <div>Nenhuma criança cadastrada.</div>
+      ) : (
+        <div style={{display:"grid", gap:12, gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))"}}>
+          {list.map((c) => (
+            <Link key={c.id} to={`/children/${c.id}`} style={{
+              border:"1px solid #e5e7eb", borderRadius:10, padding:12, background:"#fff", textDecoration:"none", color:"#111827"
+            }}>
+              <div style={{fontWeight:700}}>{c.name}</div>
+              <div style={{fontSize:13, color:"#334155"}}>{c.age} anos • {c.gender}</div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
