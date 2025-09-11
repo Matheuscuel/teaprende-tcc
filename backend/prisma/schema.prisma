@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model child_game {
+  child_id    Int
+  game_id     Int
+  assigned_by Int?
+  assigned_at DateTime @default(now()) @db.Timestamp(6)
+
+  users    users?    @relation(fields: [assigned_by], references: [id], onUpdate: NoAction)
+  children children  @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  games    games     @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([child_id, game_id])
+  @@index([game_id])
+  @@index([child_id])
+  @@index([assigned_by])
+}
+
+model child_professional {
+  id              Int       @id @default(autoincrement())
+  child_id        Int?
+  professional_id Int?
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  children children? @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users    users?    @relation(fields: [professional_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([child_id, professional_id])
+  @@index([child_id])
+  @@index([professional_id])
+}
+
+model children {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @db.VarChar(255)
+  age                Int
+  gender             String               @db.VarChar(50)
+  notes              String?
+  parent_id          Int?
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+
+  // relações existentes
+  child_game         child_game[]
+  child_professional child_professional[]
+  users              users?               @relation(fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  game_progress      game_progress[]
+
+  // novas relações
+  game_sessions      game_sessions[]
+
+  @@index([parent_id])
+}
+
+model game_progress {
+  id         Int       @id @default(autoincrement())
+  game_id    Int?
+  child_id   Int?
+  score      Int
+  time_spent Int?
+  notes      String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  children children? @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  games    games?    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([child_id])
+  @@index([game_id])
+}
+
+model games {
+  id           Int             @id @default(autoincrement())
+  title        String          @db.VarChar(255)
+  description  String
+  level        String          @db.VarChar(50)
+  category     String          @db.VarChar(100)
+  image_url    String?         @db.VarChar(255)
+  instructions String?
+  created_at   DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?       @default(now()) @db.Timestamp(6)
+
+  // relações existentes
+  child_game    child_game[]
+  game_progress game_progress[]
+
+  // novas relações
+  game_sessions game_sessions[]
+}
+
+model users {
+  id             Int                  @id @default(autoincrement())
+  name           String               @db.VarChar(255)
+  email          String               @unique @db.VarChar(255)
+  password       String               @db.VarChar(255)
+  role           String               @db.VarChar(50)
+  institution    String?              @db.VarChar(255)
+  specialization String?              @db.VarChar(255)
+  created_at     DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?            @default(now()) @db.Timestamp(6)
+
+  // relações existentes
+  child_game         child_game[]
+  child_professional child_professional[]
+  children           children[]
+
+  // novas relações
+  game_sessions      game_sessions[]  // sessões iniciadas por este usuário (profissional)
+}
+
+//
+// Novos modelos para sessões e eventos de jogo
+//
+model game_sessions {
+  id           Int       @id @default(autoincrement())
+  game_id      Int
+  child_id     Int
+  started_by   Int
+  started_at   DateTime  @default(now()) @db.Timestamp(6)
+  ended_at     DateTime? @db.Timestamp(6)
+  outcome      String?   // "completed" | "aborted" | "timeout" | etc.
+  score        Int?
+  accuracy     Float?
+  duration_sec Int?
+  notes        String?
+
+  // relações
+  games    games    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  children children @relation(fields: [child_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users    users    @relation(fields: [started_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  game_events game_events[]
+
+  @@index([game_id])
+  @@index([child_id])
+  @@index([started_by])
+  @@index([started_at])
+}
+
+model game_events {
+  id           Int       @id @default(autoincrement())
+  session_id   Int
+  ts           DateTime  @default(now()) @db.Timestamp(6)
+  type         String    // "level_start" | "level_end" | "hit" | "miss" | "attempt" | etc.
+  payload_json Json?
+
+  game_sessions game_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([session_id])
+  @@index([ts])
+}

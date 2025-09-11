@@ -1,0 +1,37 @@
+﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
+
+export default function Nav(){
+  const navigate = useNavigate();
+  const loc = useLocation();
+  const user = (()=>{ try { return JSON.parse(localStorage.getItem('user')||'null'); } catch { return null; } })();
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  const Item = ({to,label}) => (
+    <Link
+      to={to}
+      className={\px-3 py-2 rounded-xl \\}
+    >{label}</Link>
+  );
+
+  return (
+    <header className="bg-blue-700">
+      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className="text-white font-extrabold text-xl tracking-wide">TEAprende</div>
+        <nav className="flex gap-1 ml-4">
+          <Item to="/dashboard" label="Dashboard" />
+          <Item to="/children"  label="Crianças" />
+          <Item to="/games"     label="Jogos" />
+        </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {user && <span className="text-white/90 text-sm">{user.email} · {user.role}</span>}
+          <button onClick={logout} className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-3 py-1.5">Sair</button>
+        </div>
+      </div>
+    </header>
+  );
+}

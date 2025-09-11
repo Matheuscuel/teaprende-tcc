@@ -1,0 +1,139 @@
+﻿import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { api } from '../api';
+import ChildGameTimeseries from '../components/ChildGameTimeseries';
+
+export default function ChildDetail(){
+  const { id } = useParams();
+  const childId = Number(id);
+
+  const [child,setChild]       = useState(null);
+  const [assigned,setAssigned] = useState([]);
+  const [summary,setSummary]   = useState([]);
+  const [err,setErr]           = useState('');
+  const [loading,setLoading]   = useState(true);
+
+  const load = async () => {
+    setErr(''); setLoading(true);
+    try {
+      const [c, g, s] = await Promise.all([
+        api(\/api/children/\\),
+        api(\/api/children/\/games\),
+        api(\/api/children/\/performance\),
+      ]);
+      setChild(c);
+      setAssigned(Array.isArray(g) ? g : []);
+      setSummary(Array.isArray(s?.summary) ? s.summary : []);
+    } catch(e){ setErr(e.message); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [childId]);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-4">{child?.name || 'Criança'}</h1>
+      {err && <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4">{err}</div>}
+
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        <Card title="Idade" value={child?.age ?? '—'} />
+        <Card title="Responsável" value={child?.parent_id ? \#\\ : '—'} />
+        <Card title="Jogos atribuídos" value={assigned.length} />
+      </div>
+
+      <section className="bg-white rounded-2xl shadow p-4 mb-6">
+        <h2 className="font-semibold mb-3">Atribuições</h2>
+        <ul className="divide-y">
+          {assigned.map(a => (
+            <li key={a.game_id} className="py-2">
+              <div className="font-medium">{a.title}</div>
+              <div className="text-sm text-gray-500">{a.category} · {a.level}</div>
+            </li>
+          ))}
+          {!assigned.length && <div className="text-gray-500">Nenhum jogo atribuído.</div>}
+        </ul>
+      </section>
+
+      <section className="bg-white rounded-2xl shadow p-4 mb-6">
+        <h2 className="font-semibold mb-3">Registrar sessão</h2>
+        <ProgressForm childId={childId} assigned={assigned} onSaved={load}/>
+      </section>
+
+      <section className="bg-white rounded-2xl shadow p-4">
+        <h2 className="font-semibold mb-4">Desempenho</h2>
+        {!summary.length && <div className="text-gray-500">Sem dados ainda.</div>}
+        <div className="space-y-6">
+          {summary.map(row => (
+            <div key={row.game_id} className="border rounded-xl p-3">
+              <div className="font-medium mb-1">{row.title}</div>
+              <div className="text-sm text-gray-600 mb-2">Média {row.avg_score} · Sessões {row.sessions}</div>
+              <ChildGameTimeseries childId={childId} gameId={row.game_id}/>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Card({title,value}) {
+  return (
+    <div className="bg-white rounded-2xl shadow p-4">
+      <div className="text-sm text-gray-500">{title}</div>
+      <div className="text-2xl font-bold">{String(value)}</div>
+    </div>
+  );
+}
+
+function ProgressForm({ childId, assigned, onSaved }){
+  const [gameId,setGameId] = useState(assigned[0]?.game_id || '');
+  const [score,setScore]   = useState('');
+  const [time,setTime]     = useState('');
+  const [notes,setNotes]   = useState('');
+  const [loading,setLoading] = useState(false);
+  const [msg,setMsg] = useState('');
+
+  useEffect(() => { if (assigned.length && !gameId) setGameId(assigned[0].game_id); }, [assigned]);
+
+  const submit = async (e) => {
+    e.preventDefault(); setMsg(''); setLoading(true);
+    try {
+      if (!gameId) throw new Error('Selecione um jogo');
+      await api(\/api/children/\/games/\/progress\, {
+        method: 'POST',
+        body: JSON.stringify({ score: Number(score), time_spent: Number(time), notes })
+      });
+      setMsg('Progresso registrado!');
+      setScore(''); setTime(''); setNotes('');
+      onSaved?.();
+    } catch(e){ setMsg(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={submit} className="grid md:grid-cols-4 gap-3 items-end">
+      <label className="md:col-span-2">
+        <span className="block text-sm text-gray-600">Jogo</span>
+        <select value={gameId} onChange={e=>setGameId(e.target.value)} className="w-full border rounded-xl px-3 py-2">
+          {assigned.map(a => <option key={a.game_id} value={a.game_id}>{a.title}</option>)}
+        </select>
+      </label>
+      <label>
+        <span className="block text-sm text-gray-600">Score (0–100)</span>
+        <input type="number" min="0" max="100" value={score} onChange={e=>setScore(e.target.value)} className="w-full border rounded-xl px-3 py-2"/>
+      </label>
+      <label>
+        <span className="block text-sm text-gray-600">Tempo (s)</span>
+        <input type="number" min="0" value={time} onChange={e=>setTime(e.target.value)} className="w-full border rounded-xl px-3 py-2"/>
+      </label>
+      <label className="md:col-span-3">
+        <span className="block text-sm text-gray-600">Notas</span>
+        <input value={notes} onChange={e=>setNotes(e.target.value)} className="w-full border rounded-xl px-3 py-2"/>
+      </label>
+      <div>
+        <button disabled={loading} className="bg-blue-700 text-white rounded-xl px-4 py-2 w-full">{loading?'Enviando…':'Salvar'}</button>
+      </div>
+      {msg && <div className="md:col-span-4 text-sm text-blue-700">{msg}</div>}
+    </form>
+  );
+}

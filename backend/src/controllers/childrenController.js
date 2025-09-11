@@ -68,3 +68,4 @@ module.exports = {
   createChild, listChildren, getChild,
   assignGames, getAssignments, performance
 };
+

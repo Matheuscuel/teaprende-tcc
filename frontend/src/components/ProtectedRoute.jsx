@@ -1,20 +1,8 @@
-"use client"
-import { Navigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
+﻿import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
-const ProtectedRoute = ({ children }) => {
-  const { signed, loading } = useAuth()
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Carregando...</div>
-  }
-
-  if (!signed) {
-    return <Navigate to="/login" />
-  }
-
-  return children
+export default function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('token');
+  const loc = useLocation();
+  if (!token) return <Navigate to="/login" replace state={{ from: loc }} />;
+  return children ?? <Outlet />;
 }
-
-export default ProtectedRoute
-
