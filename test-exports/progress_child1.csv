@@ -1,0 +1,8 @@
+﻿id,created_at_iso,child_id,child_name,game_id,game_title,skill_code,score,time_spent,notes
+"25","2025-09-30T01:35:22.995Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","12","5","sess�o teste m4"
+"24","2025-09-29T23:46:44.636Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","12","5","teste overview"
+"23","2025-09-29T22:21:19.147Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","20","10","sess�o teste"
+"16","2025-09-10T21:00:44.030Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","100","30","Q=9 H=9 M=0"
+"15","2025-09-10T20:56:01.820Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","92","120","ok"
+"14","2025-09-10T13:42:34.199Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","88","140","ok"
+"13","2025-09-08T20:17:27.578Z","1","Criança Teste","1","Reconhecimento de Emoções","SOC_EMO_1","95","150","Mandou muito bem!"
