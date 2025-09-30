@@ -1,0 +1,89 @@
+﻿const express = require("express");
+const router = express.Router();
+
+// --- BigInt → Number para JSON (aplicado a todas as respostas deste router) ---
+const bigIntJson = (req, res, next) => {
+  const oldJson = res.json.bind(res);
+  res.json = (data) =>
+    oldJson(JSON.parse(JSON.stringify(data, (k, v) => (typeof v === 'bigint' ? Number(v) : v))));
+  next();
+};
+router.use(bigIntJson);
+// --- fim helper ---const { prisma } = require("../db");
+
+// POST /progress  { child_id, game_id, score, time_spent?, notes? }
+router.post("/", async (req, res, next) => {
+  try {
+    const { child_id, game_id, score, time_spent = null, notes = "" } = req.body || {};
+    if (!child_id || !game_id || score == null) {
+      return res.status(400).json({ error: "child_id, game_id e score são obrigatórios" });
+    }
+    const row = await prisma.$queryRaw`
+      INSERT INTO game_progress (child_id, game_id, score, time_spent, notes)
+      VALUES (${Number(child_id)}, ${Number(game_id)}, ${Number(score)}, ${time_spent ? Number(time_spent) : null}, ${notes})
+      RETURNING id, child_id, game_id, score, time_spent, notes, created_at`;
+    res.status(201).json(row[0]);
+  } catch (e) { next(e); }
+});
+
+// GET /progress/child/:childId  (?game_id=)
+router.get("/child/:childId", async (req, res, next) => {
+  try {
+    const childId = Number(req.params.childId);
+    const gameId  = req.query.game_id ? Number(req.query.game_id) : null;
+    const rows = gameId
+      ? await prisma.$queryRaw`
+          SELECT gp.*, g.title AS game_title, s.code AS skill_code
+          FROM game_progress gp
+          LEFT JOIN games g   ON g.id = gp.game_id
+          LEFT JOIN skills s  ON s.id = g.skill_id
+          WHERE gp.child_id = ${childId} AND gp.game_id = ${gameId}
+          ORDER BY gp.created_at DESC`
+      : await prisma.$queryRaw`
+          SELECT gp.*, g.title AS game_title, s.code AS skill_code
+          FROM game_progress gp
+          LEFT JOIN games g   ON g.id = gp.game_id
+          LEFT JOIN skills s  ON s.id = g.skill_id
+          WHERE gp.child_id = ${childId}
+          ORDER BY gp.created_at DESC`;
+    res.json(rows.map(deBigIntRow));
+  } catch (e) { next(e); }
+});
+
+// GET /progress/overview
+router.get("/overview", async (req, res, next) => {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT
+        gp.child_id,
+        c.name          AS child_name,
+        gp.game_id,
+        g.title         AS game_title,
+        s.code          AS skill_code,
+        COUNT(*)::int        AS sessions
+        SUM(gp.score)   AS total_score
+        AVG(gp.score)   AS avg_score,
+        SUM(COALESCE(gp.time_spent,0)) AS total_time      FROM game_progress gp
+      JOIN children c ON c.id = gp.child_id
+      JOIN games g    ON g.id = gp.game_id
+      LEFT JOIN skills s ON s.id = g.skill_id
+      GROUP BY gp.child_id, c.name, gp.game_id, g.title, s.code
+      ORDER BY c.name, g.title`;
+    res.json(rows.map(deBigIntRow));
+  } catch (e) { next(e); }
+});
+
+module.exports = router;
+
+
+
+
+function bigIntJson(req, res, next) {
+  const oldJson = res.json.bind(res);
+  res.json = (data) => {
+    const s = JSON.stringify(data, (k, v) => (typeof v === 'bigint' ? v.toString() : v));
+    res.set('Content-Type','application/json');
+    return res.send(s);
+  };
+  next();
+}

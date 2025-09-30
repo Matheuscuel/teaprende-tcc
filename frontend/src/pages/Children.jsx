@@ -1,63 +1,41 @@
-import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
-import api from "../services/api"
-import ChildForm from "../components/ChildForm"
-import AssignGamesModal from "../components/AssignGamesModal"
+﻿import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import api from "../services/api";
 
 export default function Children() {
-  const [children, setChildren] = useState([])
-  const [openAssign, setOpenAssign] = useState(false)
-  const [selectedChild, setSelectedChild] = useState(null)
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  const load = async () => {
-    const { data } = await api.get("/children")
-    // seu backend responde { page, pageSize, total, data }
-    setChildren(data.data || [])
-  }
+  useEffect(() => {
+    setErr("");
+    api.get("/children")
+      .then(r => setList(r.data))
+      .catch(e => setErr(e?.response?.data?.error || "Erro ao carregar crianças"))
+      .finally(() => setLoading(false));
+  }, []);
 
-  useEffect(() => { load() }, [])
+  if (loading) return <div style={{padding:16}}>Carregando...</div>;
+  if (err) return <div style={{padding:16, color:"#b91c1c"}}>{err}</div>;
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold">Crianças</h1>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="p-4 border rounded">
-          <h2 className="font-semibold mb-2">Cadastrar nova</h2>
-          <ChildForm onSuccess={load} />
+    <div style={{padding:16}}>
+      <h2>Crianças</h2>
+      {list.length === 0 ? (
+        <div>Nenhuma criança cadastrada.</div>
+      ) : (
+        <div style={{display:"grid", gap:12, gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))"}}>
+          {list.map((c) => (
+            <Link key={c.id} to={`/children/${c.id}`} style={{
+              border:"1px solid #e5e7eb", borderRadius:10, padding:12, background:"#fff", textDecoration:"none", color:"#111827"
+            }}>
+              <div style={{fontWeight:700}}>{c.name}</div>
+              <div style={{fontSize:13, color:"#334155"}}>{c.age} anos • {c.gender}</div>
+            </Link>
+          ))}
         </div>
-
-        <div className="p-4 border rounded">
-          <h2 className="font-semibold mb-2">Lista</h2>
-          <ul className="space-y-2">
-            {children.map((c) => (
-              <li key={c.id} className="flex items-center justify-between border rounded p-2">
-                <div>
-                  <div className="font-medium">{c.name}</div>
-                  <div className="text-sm text-gray-600">
-                    {c.birth_date ? new Date(c.birth_date).toLocaleDateString() : "sem data"} • {c.therapist_name || "—"}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    className="px-3 py-1 border rounded"
-                    onClick={() => { setSelectedChild(c); setOpenAssign(true) }}
-                  >
-                    Atribuir jogos
-                  </button>
-                  <Link to={`/children/${c.id}`} className="px-3 py-1 border rounded">
-                    Desempenho
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {openAssign && selectedChild && (
-        <AssignGamesModal child={selectedChild} onClose={() => setOpenAssign(false)} />
       )}
     </div>
-  )
+  );
 }
+

@@ -1,0 +1,97 @@
+﻿{
+  "info": {
+    "name": "TEAprende - Modulo 3 Jogos",
+    "_postman_id": "teaprende-mod3",
+    "description": "Coleção para testar Jogos, Sessões e Progresso no TCC",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Criar Jogo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Memória de Cores\",\n  \"description\": \"Jogo para treinar memória visual\",\n  \"level\": \"fácil\",\n  \"category\": \"memória\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/api/games",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api", "games"]
+        }
+      }
+    },
+    {
+      "name": "Iniciar Sessão",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "http://localhost:3001/api/children/1/games/1/sessions/start",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api","children","1","games","1","sessions","start"]
+        }
+      }
+    },
+    {
+      "name": "Registrar Evento",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"hit\",\n  \"payload\": { \"level\": 1 }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/api/game-sessions/1/events",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api","game-sessions","1","events"]
+        }
+      }
+    },
+    {
+      "name": "Finalizar Sessão",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"outcome\": \"completed\",\n  \"score\": 95,\n  \"accuracy\": 0.92,\n  \"duration_sec\": 150,\n  \"notes\": \"Mandou muito bem!\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/api/game-sessions/1/finish",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api","game-sessions","1","finish"]
+        }
+      }
+    },
+    {
+      "name": "Ver Progresso da Criança",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "http://localhost:3001/api/children/1/games/progress",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3000",
+          "path": ["api","children","1","games","progress"]
+        }
+      }
+    }
+  ]
+}
+

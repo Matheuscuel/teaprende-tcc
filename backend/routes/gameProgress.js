@@ -1,4 +1,4 @@
-// backend/src/routes/gameProgress.js
+﻿// backend/src/routes/gameProgress.js
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middleware/auth');
@@ -18,7 +18,7 @@ router.post('/',
     try {
       const { game_id, child_id, score, time_spent, notes } = req.body || {};
       if (![game_id, child_id, score].every(v => v !== undefined && v !== null)) {
-        return res.status(400).json({ error: 'game_id, child_id e score são obrigatórios' });
+        return res.status(400).json({ error: 'game_id, child_id e score sÃ£o obrigatÃ³rios' });
       }
 
       const row = await svc.create(req.db, {
@@ -35,3 +35,4 @@ router.post('/',
 );
 
 module.exports = router;
+

@@ -1,103 +1,72 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
-import { AuthProvider } from "./contexts/AuthContext"
-import ProtectedRoute from "./components/ProtectedRoute"
-import Login from "./pages/Login"
-import Register from "./pages/Register"
-import Dashboard from "./pages/Dashboard"
-import Games from "./pages/Games"
-import GameDetail from "./pages/GameDetail"
-import Reports from "./pages/Reports"
-import UserManagement from "./pages/UserManagement"
-import Profile from "./pages/Profile"
-import NotFound from "./pages/NotFound"
-import Children from "./pages/Children"
-import ChildDetail from "./pages/ChildDetail"
+﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth, defaultRouteForRole } from "./contexts/AuthContext";
+import Nav from "./components/Nav.jsx";
 
-function App() {
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+
+import Children from "./pages/Children.jsx";
+import ChildDetail from "./pages/ChildDetail.jsx";
+import Games from "./pages/Games.jsx";
+
+import RequireAuth from "./components/RequireAuth.jsx";
+import RequireRole from "./components/RequireRole.jsx";
+
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import TherapistDashboard from "./pages/TherapistDashboard.jsx";
+import TeacherDashboard from "./pages/TeacherDashboard.jsx";
+import ParentDashboard from "./pages/ParentDashboard.jsx";
+
+function AppRoutes() {
+  const { isLogged, role } = useAuth();
+  const home = isLogged ? defaultRouteForRole(role) : "/login";
+
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/games"
-            element={
-              <ProtectedRoute>
-                <Games />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/games/:id"
-            element={
-              <ProtectedRoute>
-                <GameDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <Reports />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-           <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-           path="/children"
-           element={
-             <ProtectedRoute>
-               <Children />
-             </ProtectedRoute>
-           }
-         />
-         <Route
-           path="/children/:id"
-           element={
-             <ProtectedRoute>
-               <ChildDetail />
-             </ProtectedRoute>
-           }
-         />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
-  )
+    <>
+      {isLogged ? <Nav /> : null}
+      <Routes>
+        {/* públicas */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* grupo protegido (qualquer papel) */}
+        <Route element={<RequireAuth />}>
+          <Route path="/children" element={<Children />} />
+          <Route path="/children/:id" element={<ChildDetail />} />
+          <Route path="/games" element={<Games />} />
+        </Route>
+
+        {/* por papel */}
+        <Route element={<RequireRole roles={["admin"]} />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+
+        <Route element={<RequireRole roles={["terapeuta","therapist"]} />}>
+          <Route path="/therapist" element={<TherapistDashboard />} />
+        </Route>
+
+        <Route element={<RequireRole roles={["professor","teacher"]} />}>
+          <Route path="/teacher" element={<TeacherDashboard />} />
+        </Route>
+
+        <Route element={<RequireRole roles={["responsavel","responsável","parent"]} />}>
+          <Route path="/parent" element={<ParentDashboard />} />
+        </Route>
+
+        {/* home e fallback */}
+        <Route path="/" element={<Navigate to={home} replace />} />
+        <Route path="*" element={<Navigate to={home} replace />} />
+      </Routes>
+    </>
+  );
 }
 
-export default App
-
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

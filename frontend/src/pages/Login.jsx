@@ -1,118 +1,96 @@
-"use client"
+﻿import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth, defaultRouteForRole } from "../contexts/AuthContext";
+import api from "../services/api";
 
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { useAuth } from "../contexts/AuthContext"
+function Penguin() {
+  return (
+    <div style={styles.penguinWrap}>
+      <svg width="130" height="130" viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="56" fill="#0E5AA5" />
+        <circle cx="60" cy="60" r="44" fill="#1F78D1" />
+        <g transform="translate(20,20)">
+          <ellipse cx="40" cy="40" rx="26" ry="30" fill="#0B3257"/>
+          <ellipse cx="40" cy="46" rx="22" ry="24" fill="#FFF4E1"/>
+          <circle cx="32" cy="34" r="4" fill="#0B3257"/>
+          <circle cx="48" cy="34" r="4" fill="#0B3257"/>
+          <polygon points="40,40 46,46 34,46" fill="#F4B000"/>
+          <ellipse cx="30" cy="68" rx="8" ry="4" fill="#F4B000"/>
+          <ellipse cx="50" cy="68" rx="8" ry="4" fill="#F4B000"/>
+        </g>
+      </svg>
+    </div>
+  );
+}
 
-const Login = () => {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
-  const navigate = useNavigate()
+export default function Login() {
+  const nav = useNavigate();
+  const location = useLocation();
+  const { acceptToken } = useAuth();
+  const from = location.state?.from?.pathname;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const [email, setEmail] = useState("prof1@example.com");
+  const [password, setPassword] = useState("joao");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
-    if (!email || !password) {
-      setError("Por favor, preencha todos os campos")
-      return
-    }
-
+  async function onSubmit(e) {
+    e.preventDefault();
+    setMsg(""); setLoading(true);
     try {
-      setError("")
-      setLoading(true)
-      await signIn(email, password)
-      navigate("/")
+      const { data } = await api.post("/auth/login", { email, password });
+      const u = acceptToken(data.token);
+      const target = from || defaultRouteForRole(u?.role);
+      nav(target, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Falha ao fazer login. Verifique suas credenciais.")
+      setMsg(err?.response?.data?.error || "E-mail ou senha inválidos");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">TEAprende</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Desenvolvimento de Habilidades Sociais para Crianças com TEA
-          </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Senha
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <Penguin />
+        <h1 style={styles.title}>TEAprende</h1>
+
+        <form onSubmit={onSubmit} style={styles.form}>
+          <label style={styles.label}>E-mail:</label>
+          <input type="email" style={styles.input} value={email} onChange={e=>setEmail(e.target.value)} required />
+
+          <label style={{...styles.label, marginTop: 8}}>Senha:</label>
+          <input type="password" style={styles.input} value={password} onChange={e=>setPassword(e.target.value)} required />
+
+          <div style={{ textAlign: "right", marginTop: 6 }}>
+            <a style={styles.link} href="#">Esqueceu a senha?</a>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link to="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Esqueceu sua senha?
-              </Link>
-            </div>
-          </div>
+          <button type="submit" style={styles.button} disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
-            >
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-          </div>
+          {msg && <div style={styles.error}>{msg}</div>}
 
-          <div className="text-center">
-            <p className="text-sm text-gray-600">
-              Não tem uma conta?{" "}
-              <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Cadastre-se
-              </Link>
-            </p>
+          <div style={{ textAlign: "center", marginTop: 16, color: "#E9F0FA" }}>
+            Não tem uma conta? <Link to="/register" style={styles.link}>Cadastre-se</Link>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }
 
-export default Login
+const styles = {
+  page:{minHeight:"calc(100vh - 56px)", background:"#f7fafc", display:"flex", alignItems:"center", justifyContent:"center", padding:16},
+  card:{width:520, maxWidth:"92vw", background:"#115EAB", borderRadius:20, padding:"28px 32px 32px", boxShadow:"0 20px 70px rgba(0,0,0,.20)", color:"#fff", position:"relative"},
+  penguinWrap:{position:"absolute", top:-65, left:"50%", transform:"translateX(-50%)", filter:"drop-shadow(0 10px 20px rgba(0,0,0,.2))"},
+  title:{textAlign:"center", marginTop:70, marginBottom:6, fontWeight:800, fontSize:36, color:"#FBE2B5", letterSpacing:.5},
+  form:{marginTop:8, display:"grid", gap:6},
+  label:{color:"#E9F0FA", fontWeight:600},
+  input:{border:"none", outline:"none", height:44, borderRadius:10, padding:"0 14px", background:"#FBE2B5", color:"#0B3257"},
+  button:{height:46, border:"none", borderRadius:12, background:"#4f46e5", color:"#fff", fontWeight:700, marginTop:12, cursor:"pointer"},
+  link:{color:"#CFE6FF", textDecoration:"underline"},
+  error:{marginTop:10, background:"#FDE2E2", color:"#B91C1C", padding:"8px 10px", borderRadius:8}
+};
 

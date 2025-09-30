@@ -1,0 +1,17 @@
+﻿<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="r"><circle cx="128" cy="128" r="120"/></clipPath>
+  </defs>
+  <circle cx="128" cy="128" r="120" fill="#FFE4B5" />
+  <g clip-path="url(#r)">
+    <rect width="256" height="256" fill="#0E63B6"/>
+    <ellipse cx="128" cy="150" rx="70" ry="80" fill="#0d2a3a"/>
+    <ellipse cx="128" cy="160" rx="55" ry="60" fill="#fff5e6"/>
+    <circle cx="100" cy="135" r="12" fill="#0d2a3a"/>
+    <circle cx="156" cy="135" r="12" fill="#0d2a3a"/>
+    <path d="M128 135l18 14-18 10-18-10z" fill="#f59e0b"/>
+    <path d="M88 210c10 15 30 25 40 25s30-10 40-25" stroke="#f59e0b" stroke-width="10" fill="none"/>
+    <ellipse cx="88" cy="230" rx="14" ry="10" fill="#ffb86b"/>
+    <ellipse cx="168" cy="230" rx="14" ry="10" fill="#ffb86b"/>
+  </g>
+</svg>
