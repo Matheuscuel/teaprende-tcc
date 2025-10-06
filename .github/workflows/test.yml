@@ -1,0 +1,11 @@
+﻿name: test
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main, chore/ignore-aider ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
