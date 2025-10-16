@@ -1,4 +1,4 @@
-﻿version: "3.9"
+version: "3.9"
 
 services:
   db:
@@ -51,13 +51,13 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001
     command: >
-      sh -c "npm install && npm run dev"
+      sh -c "npm install --legacy-peer-deps && npm run dev -- -H 0.0.0.0"
     depends_on:
       - api
     ports:
       - "3000:3000"
 
-  # Se preferir o CRA em /frontend, descomente abaixo e comente o serviço web_next:
+  # Se preferir o CRA em /frontend, descomente abaixo e comente o servi�o web_next:
   # web_cra:
   #   image: node:20
   #   container_name: teaprende_web_cra
