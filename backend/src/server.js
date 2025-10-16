@@ -90,3 +90,9 @@ process.on("SIGINT", async () => {
 });
 
 module.exports = app;
+
+app.use('/api/tasks', require('./routes/tasks'));
+
+app.use('/api/skills', require('./routes/skills'));
+
+app.use('/api/rewards', require('./routes/rewards'));
