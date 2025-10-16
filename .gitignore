@@ -34,3 +34,8 @@ venv/
 backend/.env
 frontend/.env
 
+
+# allow env examples
+!backend/.env.example
+!frontend/.env.example
+
