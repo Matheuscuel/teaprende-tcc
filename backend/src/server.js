@@ -96,3 +96,7 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/skills', require('./routes/skills'));
 
 app.use('/api/rewards', require('./routes/rewards'));
+
+app.use('/api/gameplay', require('./routes/gameplay'));
+
+app.use('/api/reports', require('./routes/reports_pdf'));
