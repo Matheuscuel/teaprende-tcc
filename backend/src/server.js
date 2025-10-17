@@ -100,3 +100,7 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/gameplay', require('./routes/gameplay'));
 
 app.use('/api/reports', require('./routes/reports_pdf'));
+
+app.use('/api/auth', require('./routes/auth'));
+
+app.use('/api', require('./routes/me'));
