@@ -1,76 +1,45 @@
-"use client"
+﻿"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-import type React from "react"
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-
-export default function Login() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // In a real application, this would handle the login process
-    window.location.href = "/dashboard"
+  async function onSubmit(e) {
+    e.preventDefault();
+    setErr("");
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(()=>({error:"Erro"}));
+        throw new Error(j.error || "Falha no login");
+      }
+      const data = await res.json();
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      router.push("/dashboard");
+    } catch (e) {
+      setErr(e.message);
+    }
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 flex justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Entrar</CardTitle>
-          <CardDescription>Acesse sua conta na plataforma</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Digite seu email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                  Esqueceu a senha?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <Button type="submit" className="w-full">
-              Entrar
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Não tem uma conta?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
-  )
+    <main className="max-w-md mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Entrar</h1>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <input className="border p-2 w-full" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
+        <input className="border p-2 w-full" placeholder="Senha" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+        {err && <p className="text-red-600">{err}</p>}
+        <button className="bg-black text-white px-4 py-2 rounded">Entrar</button>
+        <p className="text-sm text-gray-600">Demos: terapeuta@demo.com, prof@demo.com, responsavel@demo.com (senha: 123456)</p>
+      </form>
+    </main>
+  );
 }

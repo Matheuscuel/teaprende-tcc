@@ -1,58 +1,41 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent } from "../../components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
   const [children, setChildren] = useState([]);
-  async function load() {
-    try {
-      const r = await fetch(`${API}/api/children`, { cache: "no-store" });
-      const data = await r.json();
-      setChildren(Array.isArray(data) ? data : (data?.children ?? []));
-    } catch { setChildren([]); }
-  }
-  useEffect(() => { load(); }, []);
 
-  async function assignMemory(childId) {
-    await fetch(`${API}/api/gameplay/assign/${childId}/memory`, { method: "POST" });
-    alert("Jogo 'memory' atribuído!");
-  }
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const u = localStorage.getItem("user");
+    if (!token || !u) {
+      router.push("/login");
+      return;
+    }
+    setUser(JSON.parse(u));
+    fetch("http://localhost:3001/api/me/children", {
+      headers: { Authorization: "Bearer " + token }
+    })
+    .then(r => r.json())
+    .then(setChildren)
+    .catch(()=>{});
+  }, [router]);
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Painel do Terapeuta</h1>
-      <Card><CardContent className="pt-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {children.map(c => (
-              <TableRow key={c.id}>
-                <TableCell>{c.id}</TableCell>
-                <TableCell>{c.name || c.full_name || "-"}</TableCell>
-                <TableCell className="space-x-2">
-                  <Button onClick={() => assignMemory(c.id)}>Atribuir Memory</Button>
-                  <Link href={`/rewards`}><Button variant="secondary">Recompensas</Button></Link>
-                  <Link href={`/skills`}><Button variant="secondary">Skills</Button></Link>
-                  <Link href={`/reports?childId=${c.id}`}><Button variant="outline">Relatório</Button></Link>
-                </TableCell>
-              </TableRow>
-            ))}
-            {children.length === 0 && (
-              <TableRow><TableCell colSpan={3}>Sem crianças cadastradas.</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent></Card>
-    </div>
+    <main className="max-w-2xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-2">Minhas crianças</h1>
+      {user && <p className="mb-4 text-gray-700">Olá, {user.name} ({user.role})</p>}
+      <ul className="space-y-2">
+        {children.map(c => (
+          <li key={c.id} className="border rounded p-3 flex items-center justify-between">
+            <span>{c.name}</span>
+            <a className="underline text-blue-600" href={`/kid?childId=${c.id}`}>Abrir</a>
+          </li>
+        ))}
+        {children.length === 0 && <p className="text-gray-500">Nenhuma criança associada.</p>}
+      </ul>
+    </main>
   );
 }
