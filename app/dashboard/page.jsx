@@ -1,41 +1,43 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { apiFetch } from "../lib/api";
 
 export default function Dashboard() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
   const [children, setChildren] = useState([]);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const u = localStorage.getItem("user");
-    if (!token || !u) {
-      router.push("/login");
-      return;
-    }
-    setUser(JSON.parse(u));
-    fetch("http://localhost:3001/api/me/children", {
-      headers: { Authorization: "Bearer " + token }
-    })
-    .then(r => r.json())
-    .then(setChildren)
-    .catch(()=>{});
-  }, [router]);
+    (async () => {
+      try { setChildren(await apiFetch("/children/mine")); }
+      catch { setErr("Faça login novamente."); }
+    })();
+  }, []);
+
+  function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-2">Minhas crianças</h1>
-      {user && <p className="mb-4 text-gray-700">Olá, {user.name} ({user.role})</p>}
-      <ul className="space-y-2">
+    <main className="p-6 max-w-3xl mx-auto">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Minhas Crianças</h1>
+        <button onClick={logout} className="text-sm underline">Sair</button>
+      </div>
+      {err && <p className="text-red-600 mt-2">{err}</p>}
+      <ul className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         {children.map(c => (
-          <li key={c.id} className="border rounded p-3 flex items-center justify-between">
-            <span>{c.name}</span>
-            <a className="underline text-blue-600" href={`/kid?childId=${c.id}`}>Abrir</a>
+          <li key={c.id} className="border rounded p-4">
+            <div className="font-medium">{c.name}</div>
+            <div className="mt-2 flex gap-3">
+              <Link className="underline" href={`/kid?childId=${c.id}`}>Perfil</Link>
+              <Link className="underline" href={`/games/memory?childId=${c.id}`}>Jogo da Memória</Link>
+            </div>
           </li>
         ))}
-        {children.length === 0 && <p className="text-gray-500">Nenhuma criança associada.</p>}
       </ul>
+      {children.length === 0 && !err && <p className="mt-6 opacity-70">Nenhuma criança vinculada.</p>}
     </main>
   );
 }
