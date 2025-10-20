@@ -1,76 +1,51 @@
-"use client"
+﻿"use client";
+import { useState } from "react";
 
-import type React from "react"
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-
-export default function Login() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // In a real application, this would handle the login process
-    window.location.href = "/dashboard"
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+        window.location.href = "/dashboard";
+      } else {
+        throw new Error("Resposta inválida.");
+      }
+    } catch (err) {
+      setError("Falha no login: " + (err?.message || "erro"));
+    }
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 flex justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Entrar</CardTitle>
-          <CardDescription>Acesse sua conta na plataforma</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Digite seu email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+    <main className="p-6 max-w-md mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Entrar</h1>
+      {error && <p className="text-red-600 mb-2">{error}</p>}
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <input className="border rounded p-2 w-full" placeholder="email" value={email} onChange={e=>setEmail(e.target.value)} />
+        <input className="border rounded p-2 w-full" placeholder="senha" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+        <button className="bg-black text-white rounded px-4 py-2">Entrar</button>
+      </form>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                  Esqueceu a senha?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Digite sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <Button type="submit" className="w-full">
-              Entrar
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Não tem uma conta?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
-  )
+      <div className="mt-6 text-sm opacity-70">
+        <p>Demos:</p>
+        <ul className="list-disc ml-5">
+          <li>terapeuta@demo.com / 123456</li>
+          <li>prof@demo.com / 123456</li>
+          <li>responsavel@demo.com / 123456</li>
+        </ul>
+      </div>
+    </main>
+  );
 }

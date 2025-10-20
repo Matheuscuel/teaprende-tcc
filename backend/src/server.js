@@ -1,4 +1,4 @@
-// src/server.js
+﻿// src/server.js
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -20,7 +20,7 @@ dotenv.config();
 
 const app = express();
 
-// Middlewares básicos
+// Middlewares bÃ¡sicos
 app.use(helmet());
 app.use(cors()); // se precisar, configure origin/credentials
 app.use(morgan("dev"));
@@ -35,10 +35,10 @@ const pool = new Pool({
   port: Number(process.env.DB_PORT || 5432),
 });
 
-// Teste de conexão (opcional)
+// Teste de conexÃ£o (opcional)
 pool.query("SELECT NOW()", (err) => {
   if (err) console.error("Erro ao conectar ao banco:", err);
-  else console.log("Conexão com o banco ok!");
+  else console.log("ConexÃ£o com o banco ok!");
 });
 
 // Handler de erro do pool
@@ -90,3 +90,18 @@ process.on("SIGINT", async () => {
 });
 
 module.exports = app;
+
+app.use('/api/tasks', require('./routes/tasks'));
+
+app.use('/api/skills', require('./routes/skills'));
+
+app.use('/api/rewards', require('./routes/rewards'));
+
+app.use('/api/gameplay', require('./routes/gameplay'));
+
+app.use('/api/reports', require('./routes/reports_pdf'));
+
+app.use('/api/auth', require('./routes/auth'));
+
+app.use('/api', require('./routes/me'));
+
