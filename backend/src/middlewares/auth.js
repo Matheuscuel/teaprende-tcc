@@ -1,27 +1,26 @@
 ﻿const jwt = require("jsonwebtoken");
-const SECRET = process.env.JWT_SECRET || "changeme";
+const SECRET = process.env.JWT_SECRET || "secret";
 
+/**
+ * Middleware simples de autenticação por Bearer JWT.
+ * - Verifica o token
+ * - Preenche req.user (payload) e req.userId (sub|id|userId)
+ */
 function requireAuth(req, res, next) {
-  const hdr = req.headers.authorization || "";
-  const [, token] = hdr.split(" ");
-  if (!token) return res.status(401).json({ error: "missing token" });
   try {
+    const h = req.headers?.authorization || req.headers?.Authorization || "";
+    const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+    if (!token) return res.status(401).json({ error: "missing token" });
+
     const payload = jwt.verify(token, SECRET);
-    req.user = payload; // { sub, role, name }
+    req.user = payload;
+    req.userId = payload.sub || payload.id || payload.userId;
+
+    if (!req.userId) return res.status(401).json({ error: "invalid token" });
     next();
-  } catch (e) {
-    return res.status(401).json({ error: "invalid token" });
+  } catch (err) {
+    return res.status(401).json({ error: "unauthorized" });
   }
 }
 
-function authorize(...roles) {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: "unauthorized" });
-    if (roles.length && !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: "forbidden" });
-    }
-    next();
-  };
-}
-
-module.exports = { requireAuth, authorize };
+module.exports = { requireAuth };
