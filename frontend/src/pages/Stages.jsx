@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:3001/api";
 
-// keys = subrotas; api = endpoint
 const TABS = [
   { key: "tarefas",      label: "Tarefas",           api: "/tasks" },
   { key: "habilidades",  label: "Habilidades",       api: "/skills" },
@@ -46,17 +45,51 @@ export default function Stages() {
   }, [loc.pathname, nav]);
 
   const headers = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    () => (token ? { Authorization: `Bearer ${token}`, "Content-Type":"application/json" } : { "Content-Type":"application/json" }),
     [token]
   );
 
   const def = useMemo(() => TABS.find(t => t.key === tab) || TABS[0], [tab]);
 
+  // ===== Helpers genéricos =====
+  const getId = (row) =>
+    row?.id ?? row?._id ?? row?.task_id ?? row?.taskId ?? row?.skill_id ?? row?.skillId;
+
+  const keyName = (row) =>
+    row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem título)";
+
+  const keyDesc = (row) => row?.description ?? row?.desc ?? row?.details ?? "";
+
+  const keyStatus = (row) => {
+    if (typeof row?.status === "string") return row.status.toLowerCase();
+    if (typeof row?.completed === "boolean") return row.completed ? "done" : "open";
+    if (typeof row?.active === "boolean") return row.active ? "open" : "done";
+    return null;
+  };
+
+  const keyDates = (row) => ({
+    created: row?.created_at ?? row?.createdAt ?? null,
+    updated: row?.updated_at ?? row?.updatedAt ?? null,
+    due:     row?.due ?? row?.due_date ?? null,
+  });
+
+  const keyProgress = (row) => {
+    const p = row?.progress ?? row?.completion ?? row?.level;
+    if (typeof p === "number") {
+      if (p > 1 && p <= 100) return Math.round(p);
+      if (p >= 0 && p <= 1) return Math.round(p * 100);
+    }
+    return null;
+  };
+
+  const keyPoints = (row) => (typeof row?.points === "number" ? row.points : null);
+
+  // ===== Carregamento =====
   const load = useCallback(async () => {
-    if (!token || !def) return;
+    if (!def) return;
     setErr(""); setLoading(true);
     try {
-      const r = await fetch(`${API_BASE}${def.api}`, { headers });
+      const r = await fetch(`${API_BASE}${def.api}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
       const data = await r.json().catch(() => ({}));
       setItems(data);
@@ -66,7 +99,7 @@ export default function Stages() {
     } finally {
       setLoading(false);
     }
-  }, [token, def, headers]);
+  }, [token, def]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -81,31 +114,79 @@ export default function Stages() {
     return [];
   }, [items]);
 
-  // helpers de campos
-  const keyName = (row) => row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem título)";
-  const keyDesc = (row) => row?.description ?? row?.desc ?? row?.details ?? "";
-  const keyStatus = (row) => {
-    if (typeof row?.status === "string") return row.status.toLowerCase();
-    if (typeof row?.completed === "boolean") return row.completed ? "done" : "open";
-    if (typeof row?.active === "boolean") return row.active ? "open" : "done";
-    return null;
-  };
-  const keyDates = (row) => ({
-    created: row?.created_at ?? row?.createdAt ?? null,
-    updated: row?.updated_at ?? row?.updatedAt ?? null,
-    due:     row?.due ?? row?.due_date ?? null,
-  });
-  const keyProgress = (row) => {
-    const p = row?.progress ?? row?.completion ?? row?.level;
-    if (typeof p === "number") {
-      if (p > 1 && p <= 100) return Math.round(p);
-      if (p >= 0 && p <= 1) return Math.round(p * 100);
+  // ===== Mutations com fallback (tenta PATCH, PUT, POST ...) =====
+  async function tryUpdate(urls, body) {
+    let lastErr;
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { method: "PATCH", headers, body: JSON.stringify(body) });
+        if (r.ok) return await r.json().catch(() => ({}));
+        // tenta PUT
+        const r2 = await fetch(u, { method: "PUT", headers, body: JSON.stringify(body) });
+        if (r2.ok) return await r2.json().catch(() => ({}));
+        // tenta POST
+        const r3 = await fetch(u, { method: "POST", headers, body: JSON.stringify(body) });
+        if (r3.ok) return await r3.json().catch(() => ({}));
+        lastErr = `Falha em ${u} (HTTP ${r.status || "?"})`;
+      } catch (e) {
+        lastErr = e?.message || "Erro de rede";
+      }
     }
-    return null;
-  };
-  const keyPoints = (row) => (typeof row?.points === "number" ? row.points : null);
+    throw new Error(lastErr || "Falha na atualização");
+  }
 
-  // filtro/busca/ordem
+  async function toggleTask(row) {
+    const id = getId(row);
+    if (!id) return;
+    const nextCompleted = !(row?.completed ?? (keyStatus(row) === "done"));
+    // otimista
+    setItems((old) => applyPatch(old, id, { completed: nextCompleted, status: nextCompleted ? "done" : "open" }));
+    try {
+      await tryUpdate(
+        [
+          `${API_BASE}/tasks/${id}`,
+          `${API_BASE}/tasks/${id}/toggle`,
+        ],
+        { completed: nextCompleted }
+      );
+    } catch (e) {
+      setErr(e?.message || "Erro ao atualizar tarefa.");
+      // rollback
+      setItems((old) => applyPatch(old, id, { completed: !nextCompleted, status: !nextCompleted ? "open" : "done" }));
+    }
+  }
+
+  async function updateSkillLevel(row, level) {
+    const id = getId(row);
+    if (!id) return;
+    const norm = clamp(Number(level ?? 0), 0, 100);
+    // otimista
+    setItems((old) => applyPatch(old, id, { level: norm, progress: norm, completion: norm }));
+    try {
+      await tryUpdate(
+        [
+          `${API_BASE}/skills/${id}`,
+          `${API_BASE}/skills/${id}/update`,
+        ],
+        { level: norm }
+      );
+    } catch (e) {
+      setErr(e?.message || "Erro ao atualizar habilidade.");
+      // sem rollback preciso (usuário pode recarregar)
+    }
+  }
+
+  function applyPatch(data, id, patch) {
+    const arr = Array.isArray(data) ? data : (data?.data ?? data?.items ?? []);
+    if (!Array.isArray(arr)) return data;
+    const next = arr.map((it) => (getId(it) === id ? { ...it, ...patch } : it));
+    if (Array.isArray(data)) return next;
+    if (data?.data) return { ...data, data: next };
+    if (data?.items) return { ...data, items: next };
+    return next;
+  }
+
+  // ===== filtro/busca/ordem =====
   const filtered = useMemo(() => {
     let arr = [...list];
 
@@ -149,9 +230,25 @@ export default function Stages() {
   function goTab(k) {
     const exists = TABS.some(t => t.key === k);
     if (!exists) return;
-    // Apenas navega; o useEffect de URL atualiza o estado
     nav(`/etapas/${k}`);
   }
+
+  // dados para gráfico (aba: progresso)
+  const chartData = useMemo(() => {
+    if (def?.key !== "progresso") return [];
+    const vals = filtered
+      .map((r) => keyProgress(r))
+      .filter((v) => typeof v === "number" && !isNaN(v));
+    const buckets = [0,20,40,60,80,100];
+    const out = [];
+    for (let i=0;i<buckets.length-1;i++){
+      const a=buckets[i], b=buckets[i+1];
+      const label = `${a}-${b}%`;
+      const count = vals.filter(v => (i < buckets.length-2 ? v>=a && v<b : v>=a && v<=b)).length;
+      out.push({ label, value: count });
+    }
+    return out;
+  }, [filtered, def]);
 
   return (
     <div className="p-4 max-w-7xl mx-auto">
@@ -162,7 +259,7 @@ export default function Stages() {
         </div>
       </header>
 
-      {/* Tabs (usam sub-rotas) */}
+      {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map(t => (
           <button
@@ -239,6 +336,18 @@ export default function Stages() {
 
       {err && <div className="text-red-600 mb-3">{err}</div>}
 
+      {/* Gráfico (aba Progresso) */}
+      {def?.key === "progresso" && (
+        <div className="mb-4 p-3 border rounded-xl bg-white">
+          <h2 className="font-semibold mb-2">Distribuição de Progresso (%)</h2>
+          {chartData.length === 0 ? (
+            <div className="text-sm text-gray-500">Sem dados de progresso para exibir.</div>
+          ) : (
+            <BarChart data={chartData} />
+          )}
+        </div>
+      )}
+
       {/* Lista */}
       <div className="border rounded-xl bg-white p-3 min-h-[120px]">
         {loading && <div className="text-sm text-gray-500">Carregando…</div>}
@@ -250,8 +359,11 @@ export default function Stages() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map((row, idx) => (
               <Card
-                key={idx}
+                key={getId(row) ?? idx}
                 data={row}
+                mode={def?.key}
+                onToggleTask={() => toggleTask(row)}
+                onSkillChange={(lvl) => updateSkillLevel(row, lvl)}
                 keyName={keyName(row)}
                 desc={keyDesc(row)}
                 status={keyStatus(row)}
@@ -265,11 +377,13 @@ export default function Stages() {
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        Sub-rotas ativas: /etapas/tarefas • /etapas/habilidades • /etapas/recompensas • /etapas/progresso
+        Sub-rotas: /etapas/tarefas • /etapas/habilidades • /etapas/recompensas • /etapas/progresso
       </p>
     </div>
   );
 }
+
+/* ======= UI helpers ======= */
 
 function Badge({ children, tone = "gray" }) {
   const tones = {
@@ -287,7 +401,7 @@ function Badge({ children, tone = "gray" }) {
 }
 
 function ProgressBar({ value }) {
-  const v = Math.max(0, Math.min(100, Number(value ?? 0)));
+  const v = clamp(Number(value ?? 0), 0, 100);
   return (
     <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
       <div className="h-full bg-blue-600" style={{ width: `${v}%` }} />
@@ -304,10 +418,14 @@ function Row({ label, children }) {
   );
 }
 
-function Card({ data, keyName, desc, status, dates, progress, points }) {
-  const toneByStatus = status === "done" || status === "completed" ? "green"
-                      : status === "open" || status === "todo" ? "blue"
-                      : "gray";
+// Cartão com ações por modo (tarefas/habilidades)
+function Card({ data, keyName, desc, status, dates, progress, points, mode, onToggleTask, onSkillChange }) {
+  const toneByStatus =
+    status === "done" || status === "completed" ? "green"
+    : status === "open" || status === "todo" ? "blue"
+    : "gray";
+
+  const [lvl, setLvl] = useState(progress ?? data?.level ?? 0);
 
   return (
     <div className="rounded-xl border shadow-sm p-3 hover:shadow-md transition-shadow">
@@ -318,8 +436,44 @@ function Card({ data, keyName, desc, status, dates, progress, points }) {
 
       {desc && (
         <p className="text-sm text-gray-600 mb-3">
-          {desc.length > 160 ? desc.slice(0, 160) + "…" : desc}
+          {String(desc).length > 160 ? String(desc).slice(0, 160) + "…" : String(desc)}
         </p>
+      )}
+
+      {/* Ações por modo */}
+      {mode === "tarefas" && (
+        <div className="mb-3">
+          <button
+            onClick={onToggleTask}
+            className={"px-3 py-2 rounded-lg border shadow-sm " +
+              (status === "done" ? "bg-green-600 text-white border-green-600"
+                                  : "bg-white hover:bg-gray-50")}
+            title="Marcar/Desmarcar concluída"
+          >
+            {status === "done" ? "Desmarcar concluída" : "Marcar como concluída"}
+          </button>
+        </div>
+      )}
+
+      {mode === "habilidades" && (
+        <div className="mb-3 flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={lvl}
+            onChange={(e) => setLvl(e.target.value)}
+            className="w-24 px-2 py-1 rounded border"
+            title="Nível (0-100)"
+          />
+          <button
+            onClick={() => onSkillChange(lvl)}
+            className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
+            title="Salvar nível"
+          >
+            Salvar nível
+          </button>
+        </div>
       )}
 
       <div className="space-y-2">
@@ -353,6 +507,39 @@ function Card({ data, keyName, desc, status, dates, progress, points }) {
     </div>
   );
 }
+
+/* === Gráfico de barras (SVG puro, sem libs) === */
+function BarChart({ data }) {
+  const W = 560, H = 180, P = 24; // largura, altura, padding
+  const maxV = Math.max(1, ...data.map(d => d.value || 0));
+  const bw = (W - P*2) / data.length * 0.7;     // largura barra
+  const step = (W - P*2) / data.length;         // espaçamento
+
+  return (
+    <div className="overflow-auto">
+      <svg width={W} height={H} role="img">
+        {/* eixo x */}
+        <line x1={P} y1={H-P} x2={W-P} y2={H-P} stroke="#e5e7eb" />
+        {/* barras */}
+        {data.map((d, i) => {
+          const h = Math.round(((d.value || 0) / maxV) * (H - P*2));
+          const x = P + i*step + (step - bw)/2;
+          const y = H - P - h;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={bw} height={h} fill="#2563eb" />
+              <text x={x + bw/2} y={H - P + 14} fontSize="10" textAnchor="middle" fill="#6b7280">{d.label}</text>
+              <text x={x + bw/2} y={y - 4} fontSize="10" textAnchor="middle" fill="#374151">{d.value}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/* === utils === */
+function clamp(v, a, b) { return Math.max(a, Math.min(b, Number(v))); }
 
 function fmtDate(v) {
   if (!v) return "—";
