@@ -1,43 +1,62 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:3001/api";
 
+// keys = subrotas; api = endpoint
 const TABS = [
-  { key: "tasks",          label: "Tarefas",           path: "/tasks" },
-  { key: "skills",         label: "Habilidades",       path: "/skills" },
-  { key: "rewards",        label: "Recompensas",       path: "/rewards" },
-  { key: "game-progress",  label: "Progresso do Jogo", path: "/game-progress" },
+  { key: "tarefas",      label: "Tarefas",           api: "/tasks" },
+  { key: "habilidades",  label: "Habilidades",       api: "/skills" },
+  { key: "recompensas",  label: "Recompensas",       api: "/rewards" },
+  { key: "progresso",    label: "Progresso do Jogo", api: "/game-progress" },
 ];
 
 export default function Stages() {
   const [token, setToken] = useState("");
-  const [tab, setTab] = useState(TABS[0].key);
+  const [tab, setTab] = useState("tarefas");
 
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // filtros
+  // filtros/ordenacao
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all"); // all|open|done
-  const [order, setOrder] = useState("updated_desc"); // updated_desc|created_desc|name_asc|name_desc
+  const [status, setStatus] = useState("all");
+  const [order, setOrder] = useState("updated_desc");
 
+  const loc = useLocation();
+  const nav = useNavigate();
+
+  // sync token
+  useEffect(() => { setToken(localStorage.getItem("token") || ""); }, []);
+
+  // descobre subrota atual (/etapas/<sub>)
   useEffect(() => {
-    setToken(localStorage.getItem("token") || "");
-  }, []);
+    const seg = loc.pathname.split("/").filter(Boolean);
+    const i = seg.indexOf("etapas");
+    const sub = i >= 0 ? seg[i + 1] : null;
+    const known = TABS.find(t => t.key === sub)?.key;
+    if (!sub) {
+      nav("/etapas/tarefas", { replace: true });
+    } else if (!known) {
+      nav("/etapas/tarefas", { replace: true });
+    } else {
+      setTab(known);
+    }
+  }, [loc.pathname, nav]);
 
   const headers = useMemo(
     () => (token ? { Authorization: `Bearer ${token}` } : {}),
     [token]
   );
 
-  const def = useMemo(() => TABS.find(t => t.key === tab), [tab]);
+  const def = useMemo(() => TABS.find(t => t.key === tab) || TABS[0], [tab]);
 
   const load = useCallback(async () => {
     if (!token || !def) return;
     setErr(""); setLoading(true);
     try {
-      const r = await fetch(`${API_BASE}${def.path}`, { headers });
+      const r = await fetch(`${API_BASE}${def.api}`, { headers });
       if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
       const data = await r.json().catch(() => ({}));
       setItems(data);
@@ -51,18 +70,18 @@ export default function Stages() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Normaliza uma lista (tenta data[], items[] ou raiz[])
+  // normaliza lista
   const list = useMemo(() => {
-    if (!items) return [];
-    if (Array.isArray(items)) return items;
-    if (Array.isArray(items.data)) return items.data;
-    if (Array.isArray(items.items)) return items.items;
-    // Para game-progress, pode vir um objeto -> mostra como “uma linha”
-    if (typeof items === "object") return [items];
+    const d = items;
+    if (!d) return [];
+    if (Array.isArray(d)) return d;
+    if (Array.isArray(d?.data)) return d.data;
+    if (Array.isArray(d?.items)) return d.items;
+    if (typeof d === "object") return [d];
     return [];
   }, [items]);
 
-  // Heurísticas de campos comum
+  // helpers de campos
   const keyName = (row) => row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem título)";
   const keyDesc = (row) => row?.description ?? row?.desc ?? row?.details ?? "";
   const keyStatus = (row) => {
@@ -77,7 +96,6 @@ export default function Stages() {
     due:     row?.due ?? row?.due_date ?? null,
   });
   const keyProgress = (row) => {
-    // tenta progress, completion, level
     const p = row?.progress ?? row?.completion ?? row?.level;
     if (typeof p === "number") {
       if (p > 1 && p <= 100) return Math.round(p);
@@ -87,19 +105,17 @@ export default function Stages() {
   };
   const keyPoints = (row) => (typeof row?.points === "number" ? row.points : null);
 
-  // Filtro + busca
+  // filtro/busca/ordem
   const filtered = useMemo(() => {
     let arr = [...list];
 
-    // busca textual
     if (q.trim()) {
       const qq = q.trim().toLowerCase();
-      arr = arr.filter((r) => JSON.stringify(r).toLowerCase().includes(qq));
+      arr = arr.filter(r => JSON.stringify(r).toLowerCase().includes(qq));
     }
 
-    // status
     if (status !== "all") {
-      arr = arr.filter((r) => {
+      arr = arr.filter(r => {
         const st = keyStatus(r);
         if (status === "open") return st === "open" || st === "todo" || st === "pending";
         if (status === "done") return st === "done" || st === "completed";
@@ -107,8 +123,7 @@ export default function Stages() {
       });
     }
 
-    // ordenação
-    const cmp = (a, b) => (a > b ? 1 : a < b ? -1 : 0);
+    const cmp = (a,b) => (a > b ? 1 : a < b ? -1 : 0);
     if (order === "updated_desc") {
       arr.sort((a,b) => cmp(keyDates(b).updated ?? "", keyDates(a).updated ?? ""));
     } else if (order === "created_desc") {
@@ -122,7 +137,6 @@ export default function Stages() {
     return arr;
   }, [list, q, status, order]);
 
-  // util p/ baixar JSON exibido
   function downloadJson() {
     const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -130,6 +144,13 @@ export default function Stages() {
     a.download = `${def?.key || "dados"}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  function goTab(k) {
+    const exists = TABS.some(t => t.key === k);
+    if (!exists) return;
+    // Apenas navega; o useEffect de URL atualiza o estado
+    nav(`/etapas/${k}`);
   }
 
   return (
@@ -141,12 +162,12 @@ export default function Stages() {
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* Tabs (usam sub-rotas) */}
       <div className="flex flex-wrap gap-2 mb-4">
         {TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => goTab(t.key)}
             className={
               "px-3 py-2 rounded-lg border shadow-sm transition-colors " +
               (tab === t.key ? "bg-blue-600 text-white border-blue-600"
@@ -168,7 +189,7 @@ export default function Stages() {
           </button>
           <a
             className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
-            href={`${API_BASE}${def?.path}`}
+            href={`${API_BASE}${def?.api}`}
             target="_blank"
             rel="noreferrer"
             title="Abrir endpoint bruto"
@@ -199,7 +220,6 @@ export default function Stages() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="px-3 py-2 rounded-lg border shadow-sm bg-white"
-          title="Filtrar por status (heurístico)"
         >
           <option value="all">Todos os status</option>
           <option value="open">Abertos</option>
@@ -209,7 +229,6 @@ export default function Stages() {
           value={order}
           onChange={(e) => setOrder(e.target.value)}
           className="px-3 py-2 rounded-lg border shadow-sm bg-white"
-          title="Ordenação"
         >
           <option value="updated_desc">Atualizados (↓)</option>
           <option value="created_desc">Criados (↓)</option>
@@ -246,9 +265,7 @@ export default function Stages() {
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        Observação: Essa tela usa heurísticas para campos comuns (nome, status,
-        datas, pontos). Se o shape mudar, ainda assim caímos num cartão genérico
-        com os dados relevantes.
+        Sub-rotas ativas: /etapas/tarefas • /etapas/habilidades • /etapas/recompensas • /etapas/progresso
       </p>
     </div>
   );
@@ -328,7 +345,6 @@ function Card({ data, keyName, desc, status, dates, progress, points }) {
         )}
       </div>
 
-      {/* fallback mini JSON se quase nada foi mapeado */}
       {!desc && progress == null && points == null && !dates?.due && !dates?.updated && !dates?.created && (
         <pre className="text-[11px] mt-2 bg-gray-50 p-2 rounded overflow-auto max-h-40">
 {JSON.stringify(data, null, 2)}

@@ -97,7 +97,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
           <Route path="/relatorios" element={<Reports />} />
 
-          <Route path="/etapas" element={<Stages />} />
+          <Route path="/etapas/*" element={<Stages />} />
 
 
         </Routes>
@@ -107,6 +107,7 @@ function App() {
 }
 
 export default App
+
 
 
 
