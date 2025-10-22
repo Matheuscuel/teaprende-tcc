@@ -1,8 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:3001/api";
 
-// Tabs que vamos exibir e seus endpoints
 const TABS = [
   { key: "tasks",          label: "Tarefas",           path: "/tasks" },
   { key: "skills",         label: "Habilidades",       path: "/skills" },
@@ -13,9 +12,15 @@ const TABS = [
 export default function Stages() {
   const [token, setToken] = useState("");
   const [tab, setTab] = useState(TABS[0].key);
+
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // filtros
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("all"); // all|open|done
+  const [order, setOrder] = useState("updated_desc"); // updated_desc|created_desc|name_asc|name_desc
 
   useEffect(() => {
     setToken(localStorage.getItem("token") || "");
@@ -26,21 +31,14 @@ export default function Stages() {
     [token]
   );
 
-  useEffect(() => {
-    if (!token) return;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, tab]);
+  const def = useMemo(() => TABS.find(t => t.key === tab), [tab]);
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (!token || !def) return;
     setErr(""); setLoading(true);
     try {
-      const def = TABS.find(t => t.key === tab);
       const r = await fetch(`${API_BASE}${def.path}`, { headers });
-      if (!r.ok) {
-        const msg = `HTTP ${r.status} ${r.statusText}`;
-        throw new Error(msg);
-      }
+      if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
       const data = await r.json().catch(() => ({}));
       setItems(data);
     } catch (e) {
@@ -49,11 +47,99 @@ export default function Stages() {
     } finally {
       setLoading(false);
     }
+  }, [token, def, headers]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Normaliza uma lista (tenta data[], items[] ou raiz[])
+  const list = useMemo(() => {
+    if (!items) return [];
+    if (Array.isArray(items)) return items;
+    if (Array.isArray(items.data)) return items.data;
+    if (Array.isArray(items.items)) return items.items;
+    // Para game-progress, pode vir um objeto -> mostra como “uma linha”
+    if (typeof items === "object") return [items];
+    return [];
+  }, [items]);
+
+  // Heurísticas de campos comum
+  const keyName = (row) => row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem título)";
+  const keyDesc = (row) => row?.description ?? row?.desc ?? row?.details ?? "";
+  const keyStatus = (row) => {
+    if (typeof row?.status === "string") return row.status.toLowerCase();
+    if (typeof row?.completed === "boolean") return row.completed ? "done" : "open";
+    if (typeof row?.active === "boolean") return row.active ? "open" : "done";
+    return null;
+  };
+  const keyDates = (row) => ({
+    created: row?.created_at ?? row?.createdAt ?? null,
+    updated: row?.updated_at ?? row?.updatedAt ?? null,
+    due:     row?.due ?? row?.due_date ?? null,
+  });
+  const keyProgress = (row) => {
+    // tenta progress, completion, level
+    const p = row?.progress ?? row?.completion ?? row?.level;
+    if (typeof p === "number") {
+      if (p > 1 && p <= 100) return Math.round(p);
+      if (p >= 0 && p <= 1) return Math.round(p * 100);
+    }
+    return null;
+  };
+  const keyPoints = (row) => (typeof row?.points === "number" ? row.points : null);
+
+  // Filtro + busca
+  const filtered = useMemo(() => {
+    let arr = [...list];
+
+    // busca textual
+    if (q.trim()) {
+      const qq = q.trim().toLowerCase();
+      arr = arr.filter((r) => JSON.stringify(r).toLowerCase().includes(qq));
+    }
+
+    // status
+    if (status !== "all") {
+      arr = arr.filter((r) => {
+        const st = keyStatus(r);
+        if (status === "open") return st === "open" || st === "todo" || st === "pending";
+        if (status === "done") return st === "done" || st === "completed";
+        return true;
+      });
+    }
+
+    // ordenação
+    const cmp = (a, b) => (a > b ? 1 : a < b ? -1 : 0);
+    if (order === "updated_desc") {
+      arr.sort((a,b) => cmp(keyDates(b).updated ?? "", keyDates(a).updated ?? ""));
+    } else if (order === "created_desc") {
+      arr.sort((a,b) => cmp(keyDates(b).created ?? "", keyDates(a).created ?? ""));
+    } else if (order === "name_asc") {
+      arr.sort((a,b) => cmp(keyName(a).toLowerCase(), keyName(b).toLowerCase()));
+    } else if (order === "name_desc") {
+      arr.sort((a,b) => cmp(keyName(b).toLowerCase(), keyName(a).toLowerCase()));
+    }
+
+    return arr;
+  }, [list, q, status, order]);
+
+  // util p/ baixar JSON exibido
+  function downloadJson() {
+    const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${def?.key || "dados"}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   return (
-    <div className="p-4 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Etapas</h1>
+    <div className="p-4 max-w-7xl mx-auto">
+      <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
+        <h1 className="text-2xl font-bold">Etapas</h1>
+        <div className="text-xs text-gray-500">
+          API: <code>{API_BASE}</code>
+        </div>
+      </header>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -62,7 +148,7 @@ export default function Stages() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={
-              "px-3 py-2 rounded border " +
+              "px-3 py-2 rounded-lg border shadow-sm transition-colors " +
               (tab === t.key ? "bg-blue-600 text-white border-blue-600"
                              : "bg-white hover:bg-gray-50")
             }
@@ -70,89 +156,195 @@ export default function Stages() {
             {t.label}
           </button>
         ))}
-        <button
-          onClick={load}
-          className="ml-auto px-3 py-2 rounded border"
-          disabled={loading}
-          title="Recarregar"
-        >
-          {loading ? "Carregando…" : "Recarregar"}
-        </button>
+
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={load}
+            className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50 disabled:opacity-60"
+            disabled={loading}
+            title="Recarregar"
+          >
+            {loading ? "Carregando…" : "Recarregar"}
+          </button>
+          <a
+            className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
+            href={`${API_BASE}${def?.path}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Abrir endpoint bruto"
+          >
+            Abrir endpoint
+          </a>
+          <button
+            onClick={downloadJson}
+            className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
+            title="Baixar JSON atual"
+          >
+            Baixar JSON
+          </button>
+        </div>
       </div>
 
-      {err && <div className="text-red-600 mb-4">{err}</div>}
+      {/* Filtros */}
+      <div className="flex flex-col md:flex-row gap-3 mb-4">
+        <div className="flex-1">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar…"
+            className="w-full px-3 py-2 rounded-lg border shadow-sm outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="px-3 py-2 rounded-lg border shadow-sm bg-white"
+          title="Filtrar por status (heurístico)"
+        >
+          <option value="all">Todos os status</option>
+          <option value="open">Abertos</option>
+          <option value="done">Concluídos</option>
+        </select>
+        <select
+          value={order}
+          onChange={(e) => setOrder(e.target.value)}
+          className="px-3 py-2 rounded-lg border shadow-sm bg-white"
+          title="Ordenação"
+        >
+          <option value="updated_desc">Atualizados (↓)</option>
+          <option value="created_desc">Criados (↓)</option>
+          <option value="name_asc">Nome (A→Z)</option>
+          <option value="name_desc">Nome (Z→A)</option>
+        </select>
+      </div>
 
-      {/* Conteúdo */}
-      <div className="border rounded-lg p-3 bg-white">
-        {!items ? (
-          <div className="text-sm text-gray-500">
-            {loading ? "Carregando…" : "Sem dados para exibir."}
+      {err && <div className="text-red-600 mb-3">{err}</div>}
+
+      {/* Lista */}
+      <div className="border rounded-xl bg-white p-3 min-h-[120px]">
+        {loading && <div className="text-sm text-gray-500">Carregando…</div>}
+        {!loading && filtered.length === 0 && (
+          <div className="text-sm text-gray-500">Nada para exibir.</div>
+        )}
+
+        {!loading && filtered.length > 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map((row, idx) => (
+              <Card
+                key={idx}
+                data={row}
+                keyName={keyName(row)}
+                desc={keyDesc(row)}
+                status={keyStatus(row)}
+                dates={keyDates(row)}
+                progress={keyProgress(row)}
+                points={keyPoints(row)}
+              />
+            ))}
           </div>
-        ) : (
-          <AutoRender data={items} />
         )}
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        Dica: esta tela mostra os dados crus dos endpoints existentes. Assim que
-        definirmos o layout final, substituímos o <code>AutoRender</code> por
-        componentes específicos (listas, cards, gráficos, etc).
+        Observação: Essa tela usa heurísticas para campos comuns (nome, status,
+        datas, pontos). Se o shape mudar, ainda assim caímos num cartão genérico
+        com os dados relevantes.
       </p>
     </div>
   );
 }
 
-// Renderização simples que tenta listar arrays/objetos de forma amigável,
-// caindo para JSON quando o formato é desconhecido.
-function AutoRender({ data }) {
-  // Se for um array de objetos com campos padronizados, lista em tabela leve
-  if (Array.isArray(data) && data.length && typeof data[0] === "object") {
-    const cols = Array.from(
-      data.reduce((set, row) => {
-        Object.keys(row || {}).forEach(k => set.add(k));
-        return set;
-      }, new Set())
-    ).slice(0, 8); // até 8 colunas para não poluir
-
-    return (
-      <div className="overflow-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left border-b">
-              {cols.map(c => <th key={c} className="py-2 pr-4 font-semibold">{c}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, i) => (
-              <tr key={i} className="border-b last:border-0">
-                {cols.map(c => (
-                  <td key={c} className="py-1 pr-4">
-                    {fmt(row?.[c])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  // Senão, mostra JSON “bonito”
+function Badge({ children, tone = "gray" }) {
+  const tones = {
+    gray:  "bg-gray-100 text-gray-700 border-gray-200",
+    blue:  "bg-blue-100 text-blue-700 border-blue-200",
+    green: "bg-green-100 text-green-700 border-green-200",
+    amber: "bg-amber-100 text-amber-800 border-amber-200",
+    red:   "bg-red-100 text-red-700 border-red-200",
+  };
   return (
-    <pre className="text-xs overflow-auto bg-gray-50 p-2 rounded">
-{JSON.stringify(data, null, 2)}
-    </pre>
+    <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${tones[tone] || tones.gray}`}>
+      {children}
+    </span>
   );
 }
 
-function fmt(v) {
-  if (v == null) return "—";
-  if (typeof v === "boolean") return v ? "Sim" : "Não";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "string") {
-    if (v.length > 64) return v.slice(0, 64) + "…";
-    return v;
+function ProgressBar({ value }) {
+  const v = Math.max(0, Math.min(100, Number(value ?? 0)));
+  return (
+    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="h-full bg-blue-600" style={{ width: `${v}%` }} />
+    </div>
+  );
+}
+
+function Row({ label, children }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-gray-500 w-24">{label}</span>
+      <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+function Card({ data, keyName, desc, status, dates, progress, points }) {
+  const toneByStatus = status === "done" || status === "completed" ? "green"
+                      : status === "open" || status === "todo" ? "blue"
+                      : "gray";
+
+  return (
+    <div className="rounded-xl border shadow-sm p-3 hover:shadow-md transition-shadow">
+      <div className="flex items-start gap-2 mb-2">
+        <h3 className="font-semibold flex-1 leading-snug">{keyName}</h3>
+        {status && <Badge tone={toneByStatus}>{status}</Badge>}
+      </div>
+
+      {desc && (
+        <p className="text-sm text-gray-600 mb-3">
+          {desc.length > 160 ? desc.slice(0, 160) + "…" : desc}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {progress != null && (
+          <Row label="Progresso">
+            <div className="flex items-center gap-2">
+              <ProgressBar value={progress} />
+              <span className="text-xs text-gray-600 w-10 text-right">{progress}%</span>
+            </div>
+          </Row>
+        )}
+
+        {typeof points === "number" && (
+          <Row label="Pontos"><Badge tone="amber">{points}</Badge></Row>
+        )}
+
+        {(dates?.due || dates?.updated || dates?.created) && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-600">
+            {dates?.due && <div><span className="text-gray-500">Prazo:</span> {fmtDate(dates.due)}</div>}
+            {dates?.updated && <div><span className="text-gray-500">Atualizado:</span> {fmtDate(dates.updated)}</div>}
+            {dates?.created && <div><span className="text-gray-500">Criado:</span> {fmtDate(dates.created)}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* fallback mini JSON se quase nada foi mapeado */}
+      {!desc && progress == null && points == null && !dates?.due && !dates?.updated && !dates?.created && (
+        <pre className="text-[11px] mt-2 bg-gray-50 p-2 rounded overflow-auto max-h-40">
+{JSON.stringify(data, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function fmtDate(v) {
+  if (!v) return "—";
+  try {
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleString();
+  } catch {
+    return String(v);
   }
-  return JSON.stringify(v);
 }
