@@ -1,0 +1,23 @@
+{
+  "": "https://unpkg.com/knip@latest/schema.json",
+  "ignoreDependencies": [
+    "eslint*",
+    "prettier*"
+  ],
+  "project": [
+    "**/*.{js,jsx,ts,tsx}"
+  ],
+  "entry": [
+    "app/**/*",
+    "src/**/*",
+    "pages/**/*",
+    "components/**/*",
+    "lib/**/*"
+  ],
+  "ignore": [
+    "node_modules/**",
+    ".next/**",
+    "_reports/**",
+    "_trash/**"
+  ]
+}
