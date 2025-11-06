@@ -1,96 +1,191 @@
 ﻿"use client";
-import { useEffect, useMemo, useState } from "react";
-import { Button } from "../../../components/ui/button";
-import { Card, CardContent } from "../../../components/ui/card";
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-function shuffle(arr){ return arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Penguin from "@/app/_components/Penguin";
+import BackButton from "@/app/components/BackButton";
+import styles from "./memory.module.css";
 
-export default function MemoryPage({ searchParams }) {
-  const childId = Number(searchParams?.childId ?? 1);
-  const PAIRS = 8;
-  const deck = useMemo(() => {
-    const symbols = "🍎🍌🍇🍓🍑🍒🍍🍉🥝🍋".split("").slice(0, PAIRS);
-    const cards = symbols.flatMap((s, i) => [{ id: `${i}a`, key: i, s }, { id: `${i}b`, key: i, s }]);
-    return shuffle(cards);
-  }, []);
+const IMAGES = [
+  "/games/memory/card1.png",
+  "/games/memory/card2.png",
+  "/games/memory/card3.png",
+  "/games/memory/card4.png",
+  "/games/memory/card5.png",
+  "/games/memory/card6.png",
+  "/games/memory/card7.png",
+  "/games/memory/card8.png",
+];
 
-  const [flipped, setFlipped] = useState([]);      // ids virados
-  const [matchedKeys, setMatchedKeys] = useState(new Set());
+function buildDeck() {
+  const base = IMAGES.flatMap((p) => ([
+    { id: crypto.randomUUID(), value: p, revealed: false, matched: false },
+    { id: crypto.randomUUID(), value: p, revealed: false, matched: false },
+  ]));
+  return base.sort(() => Math.random() - 0.5);
+}
+
+function MemoryGame() {
+  const searchParams = useSearchParams();
+  const childId = searchParams?.get('childId') || 1;
+  const [deck, setDeck] = useState(buildDeck);
+  const [first, setFirst] = useState(null);
+  const [second, setSecond] = useState(null);
+  const [locked, setLocked] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const [startedAt] = useState(Date.now());
-  const allMatched = matchedKeys.size === PAIRS;
+  const [pairs, setPairs] = useState(0);
 
   useEffect(() => {
-    if (flipped.length === 2) {
-      const [a, b] = flipped;
-      const ca = deck.find(c => c.id === a);
-      const cb = deck.find(c => c.id === b);
-      setAttempts(x => x + 1);
-      if (ca.key === cb.key) {
-        setMatchedKeys(s => new Set([...s, ca.key]));
-        setTimeout(()=> setFlipped([]), 400);
+    if (first && second) {
+      setLocked(true);
+      setAttempts((a) => a + 1);
+      if (first.value === second.value) {
+        setDeck((d) =>
+          d.map((c) =>
+            (c.id === first.id || c.id === second.id)
+              ? { ...c, matched: true }
+              : c
+          )
+        );
+        setPairs((p) => p + 1);
+        setTimeout(() => {
+          setFirst(null);
+          setSecond(null);
+          setLocked(false);
+        }, 300);
       } else {
-        setTimeout(()=> setFlipped([]), 700);
+        setTimeout(() => {
+          setDeck((d) =>
+            d.map((c) =>
+              (c.id === first.id || c.id === second.id)
+                ? { ...c, revealed: false }
+                : c
+            )
+          );
+          setFirst(null);
+          setSecond(null);
+          setLocked(false);
+        }, 700);
       }
     }
-  }, [flipped]);
+  }, [first, second]);
 
-  async function onFinish() {
-    const duration = Math.round((Date.now() - startedAt)/1000);
-    const score = Math.max(0, (PAIRS*10) - (attempts - PAIRS)*2); // regra simples
-    try {
-      await fetch(`${API}/api/gameplay/session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          child_id: childId,
-          slug: "memory",
-          attempts,
-          matched_pairs: matchedKeys.size,
-          duration_seconds: duration,
-          score
-        })
-      });
-      alert("Sessão registrada!");
-    } catch (e) {
-      console.error(e);
-      alert("Falha ao registrar sessão (ok para demo).");
+  useEffect(() => {
+    if (pairs === IMAGES.length) {
+      // pequena pausa e reinicia
+      setTimeout(() => {
+        setDeck(buildDeck());
+        setFirst(null);
+        setSecond(null);
+        setAttempts(0);
+        setPairs(0);
+      }, 800);
     }
+  }, [pairs]);
+
+  function onFlip(card) {
+    if (locked || card.matched || card.revealed) return;
+    setDeck((d) => d.map((c) => (c.id === card.id ? { ...c, revealed: true } : c)));
+    if (!first) setFirst(card);
+    else if (!second) setSecond(card);
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-xl font-bold">Jogo da Memória</h1>
-      <p>Tente encontrar os pares!</p>
+    <main className={styles.memoryPage}>
+      {/* Header */}
+      <header className={styles.memoryHeader}>
+        <BackButton href={`/kid/games?childId=${childId}`} />
+        <div className="flex justify-center items-center gap-4">
+          <div className="w-16 h-16 sm:w-20 sm:h-20">
+            <Penguin size={240} />
+          </div>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-blue-900">
+            Jogo da Memória 🧠
+          </h1>
+        </div>
+        <p className="text-xl sm:text-2xl text-blue-700 font-semibold">
+          Encontre os pares iguais!
+        </p>
+        {/* Estatísticas */}
+        <div className="bg-white/80 rounded-2xl p-4 sm:p-6 shadow-lg w-full max-w-md">
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 text-lg sm:text-xl font-bold text-blue-900">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🎯</span>
+              <span>Tentativas: <span className="text-orange-500">{attempts}</span></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">⭐</span>
+              <span>Pares: <span className="text-green-500">{pairs}/{IMAGES.length}</span></span>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <div className="grid grid-cols-4 gap-3 max-w-xl">
-        {deck.map(card => {
-          const isMatched = matchedKeys.has(card.key);
-          const isFlipped = flipped.includes(card.id) || isMatched;
-          return (
-            <Card key={card.id}
-                  onClick={()=>{
-                    if (isMatched) return;
-                    if (flipped.length===2) return;
-                    if (flipped.includes(card.id)) return;
-                    setFlipped([...flipped, card.id]);
-                  }}
-                  className={"h-20 flex items-center justify-center cursor-pointer select-none " + (isFlipped ? "bg-white" : "bg-gray-200")}>
-              <CardContent className="text-3xl pt-6">{isFlipped ? card.s : "❓"}</CardContent>
-            </Card>
-          );
-        })}
+      {/* Board */}
+      <section className={styles.memoryBoard}>
+        <div className={styles.memoryGrid}>
+          {deck.map((card) => {
+            const faceUp = card.revealed || card.matched;
+            return (
+              <button
+                key={card.id}
+                onClick={() => onFlip(card)}
+                disabled={locked || card.matched}
+                className={`${styles.memoryCard} ${faceUp ? styles.flipped : ''} ${card.matched ? styles.matched : ''}`}
+              >
+                {faceUp ? (
+                  <img
+                    src={card.value}
+                    alt="Carta"
+                    className="w-12 h-12 sm:w-16 sm:h-16 object-contain select-none pointer-events-none"
+                    draggable="false"
+                  />
+                ) : (
+                  <span>❓</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Botão Reiniciar e Mensagem de Vitória */}
+      <div className="w-full max-w-5xl px-6 pb-6 flex flex-col items-center gap-4">
+        <button
+          onClick={() => { setDeck(buildDeck()); setFirst(null); setSecond(null); setAttempts(0); setPairs(0); }}
+          className="px-8 sm:px-12 py-4 sm:py-5 rounded-2xl sm:rounded-3xl bg-orange-400 hover:bg-orange-500 text-white font-bold text-xl sm:text-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+        >
+          🔄 Reiniciar Jogo
+        </button>
+
+        {/* Mensagem de vitória */}
+        {pairs === IMAGES.length && pairs > 0 && (
+          <div className="bg-yellow-300 rounded-2xl p-6 sm:p-8 shadow-xl animate-bounce">
+            <p className="text-4xl sm:text-5xl mb-2">🎉</p>
+            <p className="text-2xl sm:text-3xl font-bold text-blue-900">
+              Parabéns! Você conseguiu! 🌟
+            </p>
+          </div>
+        )}
       </div>
+    </main>
+  );
+}
 
-      <div className="flex items-center gap-4">
-        <span>Tentativas: {attempts}</span>
-        <span>Pares: {matchedKeys.size}/{PAIRS}</span>
-      </div>
-
-      {allMatched && (
-        <Button onClick={onFinish}>Concluir</Button>
-      )}
+export default function MemoryPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-br from-blue-100 via-yellow-50 to-orange-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-32 h-32 mx-auto mb-4">
+            <Penguin size={240} />
+          </div>
+          <p className="text-2xl font-bold text-blue-900">Carregando...</p>
     </div>
+      </main>
+    }>
+      <MemoryGame />
+    </Suspense>
   );
 }
