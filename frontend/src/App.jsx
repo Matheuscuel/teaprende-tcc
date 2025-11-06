@@ -1,113 +1,31 @@
-﻿import Stages from "./pages/Stages.jsx";
-import Reports from "./pages/Reports.jsx";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
-import { AuthProvider } from "./contexts/AuthContext"
-import ProtectedRoute from "./components/ProtectedRoute"
-import Login from "./pages/Login"
-import Register from "./pages/Register"
-import Dashboard from "./pages/Dashboard"
-import Games from "./pages/Games"
-import GameDetail from "./pages/GameDetail"
-import Reports from "./pages/Reports"
-import UserManagement from "./pages/UserManagement"
-import Profile from "./pages/Profile"
-import NotFound from "./pages/NotFound"
-import Children from "./pages/Children"
-import ChildDetail from "./pages/ChildDetail"
+﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Home from "./pages/Home";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+import Dashboard from "./App.Dashboard";
 
-function App() {
-  return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/games"
-            element={
-              <ProtectedRoute>
-                <Games />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/games/:id"
-            element={
-              <ProtectedRoute>
-                <GameDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <Reports />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-           <Route
-            path="/users"
-            element={
-              <ProtectedRoute>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-           path="/children"
-           element={
-             <ProtectedRoute>
-               <Children />
-             </ProtectedRoute>
-           }
-         />
-         <Route
-           path="/children/:id"
-           element={
-             <ProtectedRoute>
-               <ChildDetail />
-             </ProtectedRoute>
-           }
-         />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<NotFound />} />
-          <Route path="/relatorios" element={<Reports />} />
-
-          <Route path="/etapas/*" element={<Stages />} />
-
-
-        </Routes>
-      </Router>
-    </AuthProvider>
-  )
+function RequireAuth({ children }) {
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" replace />;
 }
 
-export default App
-
-
-
-
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/dashboard/*"
+          element={
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}

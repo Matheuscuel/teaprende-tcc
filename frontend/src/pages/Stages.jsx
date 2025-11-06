@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:3001/api";
@@ -51,12 +51,12 @@ export default function Stages() {
 
   const def = useMemo(() => TABS.find(t => t.key === tab) || TABS[0], [tab]);
 
-  // ===== Helpers genéricos =====
+  // ===== Helpers genÃƒÂ©ricos =====
   const getId = (row) =>
     row?.id ?? row?._id ?? row?.task_id ?? row?.taskId ?? row?.skill_id ?? row?.skillId;
 
   const keyName = (row) =>
-    row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem título)";
+    row?.title ?? row?.name ?? row?.skill ?? row?.reward ?? "(sem tÃƒÂ­tulo)";
 
   const keyDesc = (row) => row?.description ?? row?.desc ?? row?.details ?? "";
 
@@ -132,7 +132,7 @@ export default function Stages() {
         lastErr = e?.message || "Erro de rede";
       }
     }
-    throw new Error(lastErr || "Falha na atualização");
+    throw new Error(lastErr || "Falha na atualizaÃƒÂ§ÃƒÂ£o");
   }
 
   async function toggleTask(row) {
@@ -172,7 +172,7 @@ export default function Stages() {
       );
     } catch (e) {
       setErr(e?.message || "Erro ao atualizar habilidade.");
-      // sem rollback preciso (usuário pode recarregar)
+      // sem rollback preciso (usuÃƒÂ¡rio pode recarregar)
     }
   }
 
@@ -233,7 +233,7 @@ export default function Stages() {
     nav(`/etapas/${k}`);
   }
 
-  // dados para gráfico (aba: progresso)
+  // dados para grÃƒÂ¡fico (aba: progresso)
   const chartData = useMemo(() => {
     if (def?.key !== "progresso") return [];
     const vals = filtered
@@ -282,7 +282,7 @@ export default function Stages() {
             disabled={loading}
             title="Recarregar"
           >
-            {loading ? "Carregando…" : "Recarregar"}
+            {loading ? "CarregandoÃ¢â‚¬Â¦" : "Recarregar"}
           </button>
           <a
             className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
@@ -309,7 +309,7 @@ export default function Stages() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar…"
+            placeholder="BuscarÃ¢â‚¬Â¦"
             className="w-full px-3 py-2 rounded-lg border shadow-sm outline-none focus:ring-2 focus:ring-blue-200"
           />
         </div>
@@ -320,26 +320,26 @@ export default function Stages() {
         >
           <option value="all">Todos os status</option>
           <option value="open">Abertos</option>
-          <option value="done">Concluídos</option>
+          <option value="done">ConcluÃƒÂ­dos</option>
         </select>
         <select
           value={order}
           onChange={(e) => setOrder(e.target.value)}
           className="px-3 py-2 rounded-lg border shadow-sm bg-white"
         >
-          <option value="updated_desc">Atualizados (↓)</option>
-          <option value="created_desc">Criados (↓)</option>
-          <option value="name_asc">Nome (A→Z)</option>
-          <option value="name_desc">Nome (Z→A)</option>
+          <option value="updated_desc">Atualizados (Ã¢â€ â€œ)</option>
+          <option value="created_desc">Criados (Ã¢â€ â€œ)</option>
+          <option value="name_asc">Nome (AÃ¢â€ â€™Z)</option>
+          <option value="name_desc">Nome (ZÃ¢â€ â€™A)</option>
         </select>
       </div>
 
       {err && <div className="text-red-600 mb-3">{err}</div>}
 
-      {/* Gráfico (aba Progresso) */}
+      {/* GrÃƒÂ¡fico (aba Progresso) */}
       {def?.key === "progresso" && (
         <div className="mb-4 p-3 border rounded-xl bg-white">
-          <h2 className="font-semibold mb-2">Distribuição de Progresso (%)</h2>
+          <h2 className="font-semibold mb-2">DistribuiÃƒÂ§ÃƒÂ£o de Progresso (%)</h2>
           {chartData.length === 0 ? (
             <div className="text-sm text-gray-500">Sem dados de progresso para exibir.</div>
           ) : (
@@ -350,7 +350,7 @@ export default function Stages() {
 
       {/* Lista */}
       <div className="border rounded-xl bg-white p-3 min-h-[120px]">
-        {loading && <div className="text-sm text-gray-500">Carregando…</div>}
+        {loading && <div className="text-sm text-gray-500">CarregandoÃ¢â‚¬Â¦</div>}
         {!loading && filtered.length === 0 && (
           <div className="text-sm text-gray-500">Nada para exibir.</div>
         )}
@@ -377,7 +377,7 @@ export default function Stages() {
       </div>
 
       <p className="text-xs text-gray-500 mt-4">
-        Sub-rotas: /etapas/tarefas • /etapas/habilidades • /etapas/recompensas • /etapas/progresso
+        Sub-rotas: /etapas/tarefas Ã¢â‚¬Â¢ /etapas/habilidades Ã¢â‚¬Â¢ /etapas/recompensas Ã¢â‚¬Â¢ /etapas/progresso
       </p>
     </div>
   );
@@ -418,7 +418,7 @@ function Row({ label, children }) {
   );
 }
 
-// Cartão com ações por modo (tarefas/habilidades)
+// CartÃƒÂ£o com aÃƒÂ§ÃƒÂµes por modo (tarefas/habilidades)
 function Card({ data, keyName, desc, status, dates, progress, points, mode, onToggleTask, onSkillChange }) {
   const toneByStatus =
     status === "done" || status === "completed" ? "green"
@@ -436,11 +436,11 @@ function Card({ data, keyName, desc, status, dates, progress, points, mode, onTo
 
       {desc && (
         <p className="text-sm text-gray-600 mb-3">
-          {String(desc).length > 160 ? String(desc).slice(0, 160) + "…" : String(desc)}
+          {String(desc).length > 160 ? String(desc).slice(0, 160) + "Ã¢â‚¬Â¦" : String(desc)}
         </p>
       )}
 
-      {/* Ações por modo */}
+      {/* AÃƒÂ§ÃƒÂµes por modo */}
       {mode === "tarefas" && (
         <div className="mb-3">
           <button
@@ -448,9 +448,9 @@ function Card({ data, keyName, desc, status, dates, progress, points, mode, onTo
             className={"px-3 py-2 rounded-lg border shadow-sm " +
               (status === "done" ? "bg-green-600 text-white border-green-600"
                                   : "bg-white hover:bg-gray-50")}
-            title="Marcar/Desmarcar concluída"
+            title="Marcar/Desmarcar concluÃƒÂ­da"
           >
-            {status === "done" ? "Desmarcar concluída" : "Marcar como concluída"}
+            {status === "done" ? "Desmarcar concluÃƒÂ­da" : "Marcar como concluÃƒÂ­da"}
           </button>
         </div>
       )}
@@ -464,14 +464,14 @@ function Card({ data, keyName, desc, status, dates, progress, points, mode, onTo
             value={lvl}
             onChange={(e) => setLvl(e.target.value)}
             className="w-24 px-2 py-1 rounded border"
-            title="Nível (0-100)"
+            title="NÃƒÂ­vel (0-100)"
           />
           <button
             onClick={() => onSkillChange(lvl)}
             className="px-3 py-2 rounded-lg border shadow-sm bg-white hover:bg-gray-50"
-            title="Salvar nível"
+            title="Salvar nÃƒÂ­vel"
           >
-            Salvar nível
+            Salvar nÃƒÂ­vel
           </button>
         </div>
       )}
@@ -508,12 +508,12 @@ function Card({ data, keyName, desc, status, dates, progress, points, mode, onTo
   );
 }
 
-/* === Gráfico de barras (SVG puro, sem libs) === */
+/* === GrÃƒÂ¡fico de barras (SVG puro, sem libs) === */
 function BarChart({ data }) {
   const W = 560, H = 180, P = 24; // largura, altura, padding
   const maxV = Math.max(1, ...data.map(d => d.value || 0));
   const bw = (W - P*2) / data.length * 0.7;     // largura barra
-  const step = (W - P*2) / data.length;         // espaçamento
+  const step = (W - P*2) / data.length;         // espaÃƒÂ§amento
 
   return (
     <div className="overflow-auto">
@@ -542,7 +542,7 @@ function BarChart({ data }) {
 function clamp(v, a, b) { return Math.max(a, Math.min(b, Number(v))); }
 
 function fmtDate(v) {
-  if (!v) return "—";
+  if (!v) return "Ã¢â‚¬â€";
   try {
     const d = new Date(v);
     if (isNaN(d.getTime())) return String(v);

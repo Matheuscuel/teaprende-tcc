@@ -1,0 +1,20 @@
+﻿Need to install the following packages:
+envinfo@7.19.0
+Ok to proceed? (y) 
+
+  System:
+    OS: Windows 11 10.0.26100
+    CPU: (16) x64 12th Gen Intel(R) Core(TM) i7-12650H
+    Memory: 4.36 GB / 15.71 GB
+  Binaries:
+    Node: 18.20.8 - C:\nvm4w\nodejs\node.EXE
+    npm: 10.8.2 - C:\nvm4w\nodejs\npm.CMD
+  Browsers:
+    Chrome: 141.0.7390.123
+    Edge: Chromium (140.0.3485.54)
+    Internet Explorer: 11.0.26100.1882
+  npmPackages:
+    express: latest => 5.1.0 
+    react-dom: ^19 => 19.2.0 
+    typescript: ^5 => 5.9.3 
+

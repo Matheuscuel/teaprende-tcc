@@ -1,26 +1,46 @@
-﻿const jwt = require("jsonwebtoken");
-const SECRET = process.env.JWT_SECRET || "secret";
+﻿"use strict";
+const jwt = require("jsonwebtoken");
 
-/**
- * Middleware simples de autenticação por Bearer JWT.
- * - Verifica o token
- * - Preenche req.user (payload) e req.userId (sub|id|userId)
- */
-function requireAuth(req, res, next) {
+// Tenta obter um pool PG se existir no projeto, mas não derruba a API se não houver
+let pool;
+try { pool = require("../db"); } catch {}
+try { if (!pool) pool = require("../db/index"); } catch {}
+try { if (!pool) pool = require("../db"); } catch {}
+
+function asInt(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : x;
+}
+
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ message: "Token ausente" });
+
   try {
-    const h = req.headers?.authorization || req.headers?.Authorization || "";
-    const token = h.startsWith("Bearer ") ? h.slice(7) : null;
-    if (!token) return res.status(401).json({ error: "missing token" });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
 
-    const payload = jwt.verify(token, SECRET);
-    req.user = payload;
-    req.userId = payload.sub || payload.id || payload.userId;
+    // Aceita qualquer formato comum de ID no token
+    const uid = decoded.userId ?? decoded.id ?? decoded.sub;
+    if (!uid) return res.status(401).json({ message: "Token inválido" });
 
-    if (!req.userId) return res.status(401).json({ error: "invalid token" });
-    next();
+    // Anexa nos dois formatos para compatibilidade com rotas antigas e novas
+    const coerced = asInt(uid);
+    req.userId    = coerced;
+    req.user      = { ...decoded, id: coerced, sub: coerced };
+
+    // (Opcional) ping leve no banco — nunca falha a request por isso
+    if (pool?.query) {
+      try { await pool.query("select 1"); } catch (e) { /* ignora */ }
+    }
+
+    return next();
   } catch (err) {
-    return res.status(401).json({ error: "unauthorized" });
+    console.error("auth jwt error:", err?.message);
+    return res.status(401).json({ message: "Token inválido" });
   }
 }
 
 module.exports = { requireAuth };
+
+

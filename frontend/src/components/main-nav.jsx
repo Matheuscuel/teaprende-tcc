@@ -20,14 +20,14 @@ const MainNav = () => {
         className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
       >
         <BarChart3 className="mr-2 h-4 w-4" />
-        <span>Relatórios</span>
+        <span>RelatÃƒÂ³rios</span>
       </Link>
       <Link
         to="/children"
         className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
       >
         <Users className="mr-2 h-4 w-4" />
-        <span>Crianças</span>
+        <span>CrianÃƒÂ§as</span>
       </Link>
     </nav>
   )

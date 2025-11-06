@@ -1,77 +1,62 @@
-version: "3.9"
-
-services:
+﻿services:
   db:
-    image: postgres:16
-    container_name: teaprende_db
+    image: postgres:15
     environment:
+      POSTGRES_DB: tea_system
       POSTGRES_USER: tea
       POSTGRES_PASSWORD: tea
-      POSTGRES_DB: tea_system
     ports:
       - "5432:5432"
     volumes:
-      - dbdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - pgdata:/var/lib/postgresql/data
 
   api:
-    image: node:20
-    container_name: teaprende_api
-    working_dir: /app/backend
-    volumes:
-      - ./:/app
+    image: node:18-alpine
+    working_dir: /app
+    depends_on:
+      - db
     environment:
+      NODE_ENV: development
+      PORT: 3001
+      # deixe T O D A S as variantes, seu código pode ler qualquer uma delas
+      DATABASE_URL: postgres://tea:tea@db:5432/tea_system
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: tea
       DB_PASSWORD: tea
       DB_NAME: tea_system
-      JWT_SECRET: changeme
-      PORT: "3001"
-    command: >
-      sh -c "npm ci &&
-             npx knex migrate:latest --knexfile knexfile.js &&
-             node src/server.js"
-    depends_on:
-      db:
-        condition: service_healthy
+      DB_DATABASE: tea_system
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: tea
+      PGPASSWORD: tea
+      PGDATABASE: tea_system
+      CORS_ORIGIN: http://localhost:3000
+    volumes:
+      - ./backend:/app
     ports:
       - "3001:3001"
-
-  web_next:
-    image: node:20
-    container_name: teaprende_web_next
-    working_dir: /app
-    volumes:
-      - ./:/app
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
     command: >
-      sh -c "npm install --legacy-peer-deps && npm run dev -- -H 0.0.0.0"
+      sh -lc "npm install --legacy-peer-deps &&
+              npx knex migrate:latest --knexfile knexfile.js &&
+              npx knex seed:run --knexfile knexfile.js &&
+              node src/server.js"
+
+  web:
+    image: node:20
+    working_dir: /app
     depends_on:
       - api
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - NEXT_PUBLIC_API_BASE=http://localhost:3001/api
     ports:
       - "3000:3000"
-
-  # Se preferir o CRA em /frontend, descomente abaixo e comente o servi�o web_next:
-  # web_cra:
-  #   image: node:20
-  #   container_name: teaprende_web_cra
-  #   working_dir: /app/frontend
-  #   volumes:
-  #     - ./:/app
-  #   environment:
-  #     REACT_APP_API_URL: http://localhost:3001
-  #   command: >
-  #     sh -c "npm ci && npm start"
-  #   depends_on:
-  #     - api
-  #   ports:
-  #     - "5173:3000"
+    volumes:
+      - ./frontend:/app        # <- monta o código do host
+      - /app/node_modules
+    command: npm run dev
 
 volumes:
-  dbdata:
+  pgdata:

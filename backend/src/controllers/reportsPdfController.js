@@ -1,58 +1,39 @@
-﻿const db = require("../database/db");
-const PDFDocument = require("pdfkit");
+﻿const PDFDocument = require("pdfkit");
 
-function parseDate(s, def) {
-  if (!s) return def;
-  const t = new Date(s);
-  return isNaN(+t) ? def : t;
+function dateRange(q) {
+  const from = q?.from || new Date(Date.now() - 30 * 864e5).toISOString().slice(0,10);
+  const to   = q?.to   || new Date().toISOString().slice(0,10);
+  return { from, to };
 }
 
-exports.childReportPdf = async (req, res) => {
+exports.pdf = async (req, res, next) => {
   try {
     const { childId } = req.params;
-    const from = parseDate(req.query.from, new Date(Date.now() - 30*24*3600*1000)); // 30 dias
-    const to   = parseDate(req.query.to, new Date());
+    const { from, to } = dateRange(req.query);
 
-    // dados básicos
-    const child = await db("children").where({ id: childId }).first();
-
-    // métricas
-    const [{ count: tasksCompleted = "0" } = {}] =
-      await db("child_tasks").where({ child_id: childId, status: "completed" }).count();
-
-    const [{ sum: rewardPoints = "0" } = {}] =
-      await db("child_rewards").where({ child_id: childId }).sum({ sum: "points_awarded" });
-
-    const agg = await db("game_sessions2")
-      .where("child_id", childId)
-      .andWhere("created_at", ">=", from)
-      .andWhere("created_at", "<=", to)
-      .count({ sessions: "*" })
-      .avg({ avg_score: "score", avg_duration: "duration_seconds" })
-      .first();
-
-    // PDF
-    const doc = new PDFDocument({ margin: 50 });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=report_child_${childId}.pdf`);
+    res.setHeader("Content-Disposition", `inline; filename="relatorio_${childId}_${to}.pdf"`);
+
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
     doc.pipe(res);
 
-    doc.fontSize(18).text("TEAprende - Relatório da Criança", { align: "center" }).moveDown(1);
-    doc.fontSize(12).text(`Criança: ${child?.name || "#"+childId}`);
-    doc.text(`Período: ${from.toISOString().slice(0,10)} a ${to.toISOString().slice(0,10)}`).moveDown(1);
+    doc.fontSize(18).text("Relatório da Criança", { align: "center" });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Criança ID: ${childId}`);
+    doc.text(`Período: ${from} → ${to}`);
+    doc.moveDown();
 
-    doc.text(`Tarefas concluídas: ${tasksCompleted}`);
-    doc.text(`Pontos de recompensas: ${rewardPoints}`);
-    doc.text(`Sessões de jogo (memory): ${agg?.sessions ?? 0}`);
-    doc.text(`Média de score: ${Number(agg?.avg_score ?? 0).toFixed(1)}`);
-    doc.text(`Média de duração (s): ${Number(agg?.avg_duration ?? 0).toFixed(1)}`);
+    doc.fontSize(14).text("Resumo", { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text("PDF de teste gerado via pdfkit. Integre aqui os dados reais dos endpoints.");
 
-    doc.moveDown(1).text("Observações:", { underline: true }).moveDown(0.5);
-    doc.text("- Este é um relatório simples (MVP) gerado automaticamente.");
-    doc.text("- Para versões futuras: gráficos e comparação entre períodos.");
+    // Exemplo (opcional) usando req.db:
+    // const { rows } = await req.db.query("SELECT name FROM children WHERE id = $1", [childId]);
+    // const nome = rows?.[0]?.name ?? `#${childId}`;
+    // doc.moveDown().text(`Nome: ${nome}`);
 
     doc.end();
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  } catch (err) {
+    next(err);
   }
 };

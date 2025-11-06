@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta?.env?.VITE_API_URL || "http://localhost:3001/api";
 
@@ -45,7 +45,7 @@ export default function Reports() {
       })
       .catch(async (e) => {
         const msg = e?.status ? `${e.status} ${e.statusText}` : e?.message;
-        setErr(`Falha ao carregar crianças: ${msg}`);
+        setErr(`Falha ao carregar crianÃƒÂ§as: ${msg}`);
       });
   }, [token]); // eslint-disable-line
 
@@ -54,7 +54,7 @@ export default function Reports() {
   }
 
   async function loadAll() {
-    if (!childId) { setErr("Selecione uma criança."); return; }
+    if (!childId) { setErr("Selecione uma crianÃƒÂ§a."); return; }
     setErr("");
     setLoading(true);
     try {
@@ -66,7 +66,7 @@ export default function Reports() {
       ]);
       setData({ progress, skills, timeSpent, recommendations });
     } catch (e) {
-      setErr("Erro ao buscar relatórios. Confira período e autenticação.");
+      setErr("Erro ao buscar relatÃƒÂ³rios. Confira perÃƒÂ­odo e autenticaÃƒÂ§ÃƒÂ£o.");
     } finally {
       setLoading(false);
     }
@@ -93,17 +93,17 @@ export default function Reports() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Relatórios</h1>
+      <h1 className="text-2xl font-bold mb-4">RelatÃƒÂ³rios</h1>
 
       <div className="grid gap-3 md:grid-cols-4">
         <label className="flex flex-col">
-          <span className="text-sm text-gray-600">Criança</span>
+          <span className="text-sm text-gray-600">CrianÃƒÂ§a</span>
           <select
             className="border rounded px-2 py-1"
             value={childId}
             onChange={(e) => setChildId(e.target.value)}
           >
-            <option value="">Selecione…</option>
+            <option value="">SelecioneÃ¢â‚¬Â¦</option>
             {children.map((c) => (
               <option key={c.id} value={c.id}>{c.name || `#${c.id}`}</option>
             ))}
@@ -116,7 +116,7 @@ export default function Reports() {
         </label>
 
         <label className="flex flex-col">
-          <span className="text-sm text-gray-600">Até</span>
+          <span className="text-sm text-gray-600">AtÃƒÂ©</span>
           <input type="date" className="border rounded px-2 py-1" value={to} onChange={(e)=>setTo(e.target.value)} />
         </label>
 
@@ -126,7 +126,7 @@ export default function Reports() {
             disabled={loading || !childId}
             className="bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-60"
           >
-            {loading ? "Carregando…" : "Buscar"}
+            {loading ? "CarregandoÃ¢â‚¬Â¦" : "Buscar"}
           </button>
           <button
             onClick={downloadPdf}
@@ -145,7 +145,7 @@ export default function Reports() {
         <Panel title="Progresso" data={data.progress} />
         <Panel title="Habilidades" data={data.skills} />
         <Panel title="Tempo de Uso" data={data.timeSpent} />
-        <Panel title="Recomendações" data={data.recommendations} />
+        <Panel title="RecomendaÃƒÂ§ÃƒÂµes" data={data.recommendations} />
       </div>
     </div>
   );
