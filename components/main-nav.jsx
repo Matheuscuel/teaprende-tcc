@@ -29,6 +29,13 @@ export function MainNav() {
         <Users className="mr-2 h-4 w-4" />
         <span>Crianças</span>
       </Link>
+      <Link
+        href="/quem-usa"
+        className="flex items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+      >
+        <Users className="mr-2 h-4 w-4" />
+        <span>Quem Usa</span>
+      </Link>
     </nav>
   )
 }

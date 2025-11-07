@@ -1,2 +1,2 @@
-const UserManagement = () => <div>Gestão de Usuários</div>;
+const UserManagement = () => <div>GestÃƒÂ£o de UsuÃƒÂ¡rios</div>;
 export default UserManagement;

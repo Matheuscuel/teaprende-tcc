@@ -1,70 +1,37 @@
-const svc = require('../services/childrenService');
+const jwt  = require('jsonwebtoken')
+const knex = require('../db/knex')
 
-function allow(...roles) {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
-    next();
-  };
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'secret'
 
-async function createChild(req, res, next) {
+function getUserIdFromReq(req) {
   try {
-    const { name, birth_date, user_id, owner_id } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
-   
-   const child = await svc.createChild({ name, birth_date, user_id, owner_id }, req.user);
-    res.status(201).json(child);
-  } catch (e) { next(e); }
-}
-
-
-async function listChildren(req, res, next) {
-  try {
-    const page = parseInt(req.query.page || '1', 10);
-    const pageSize = parseInt(req.query.pageSize || '20', 10);
-    const data = await svc.listChildren({ requester: req.user, page, pageSize });
-    res.json({ page, pageSize, data });
-  } catch (e) { next(e); }
-}
-
-async function getChild(req, res, next) {
-  try {
-    const child = await svc.getChildById(parseInt(req.params.id, 10), req.user);
-    if (!child) return res.status(404).json({ error: 'NotFound' });
-    res.json(child);
-  } catch (e) { next(e); }
-}
-
-async function assignGames(req, res, next) {
-  try {
-    const childId = parseInt(req.params.id, 10);
-    const { game_ids } = req.body;
-    if (!Array.isArray(game_ids) || game_ids.length === 0) {
-      return res.status(400).json({ error: 'game_ids must be a non-empty array of integers' });
+    if (req.userId) return req.userId
+    if (req.user && (req.user.id || req.user.sub || req.user.userId)) {
+      return req.user.id || req.user.sub || req.user.userId
     }
-    const items = await svc.assignGames(childId, game_ids.map(Number), req.user.id);
-    res.status(201).json({ assigned: items.length, items });
-  } catch (e) { next(e); }
+    const h = (req.headers && req.headers.authorization) || ''
+    const t = h.split(' ')[1] || ''
+    if (!t) return null
+    const d = jwt.verify(t, JWT_SECRET)
+    return d.id || d.sub || d.userId || null
+  } catch (e) {
+    return null
+  }
 }
 
-async function getAssignments(req, res, next) {
+exports.listMine = async (req, res) => {
+  const userId = getUserIdFromReq(req)
+  if (!userId) return res.status(401).json({ error: 'unauthorized' })
   try {
-    const items = await svc.getAssignments(parseInt(req.params.id, 10));
-    res.json(items);
-  } catch (e) { next(e); }
-}
+    const rows = await knex('children')
+      .join('user_children', 'user_children.child_id', 'children.id')
+      .where('user_children.user_id', userId)
+      .select('children.id', 'children.name')
+      .orderBy('children.id', 'asc')
 
-async function performance(req, res, next) {
-  try {
-    const childId = parseInt(req.params.id, 10);
-    const { from, to } = req.query;
-    const payload = await svc.getPerformance(childId, { from, to });
-    res.json(payload);
-  } catch (e) { next(e); }
+    return res.json(rows)
+  } catch (err) {
+    console.error('children.mine error', err)
+    return res.status(500).json({ error: 'internal' })
+  }
 }
-
-module.exports = {
-  allow,
-  createChild, listChildren, getChild,
-  assignGames, getAssignments, performance
-};

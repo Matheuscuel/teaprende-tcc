@@ -1,20 +1,20 @@
-import type { Metadata } from 'next'
-import './globals.css'
+// app/layout.jsx
+import "./globals.css";
+import ConfigProvider from "./components/ConfigProvider";
 
-export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
-}
+export const metadata = { 
+  title: "TEAprende",
+};
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="pt-BR" className="scroll-smooth">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+      </head>
+      <body className="antialiased">
+        <ConfigProvider>{children}</ConfigProvider>
+      </body>
     </html>
-  )
+  );
 }

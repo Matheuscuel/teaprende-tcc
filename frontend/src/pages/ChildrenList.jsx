@@ -17,7 +17,7 @@ export default function ChildrenList() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Crianças</h1>
+      <h1 className="text-xl font-bold mb-4">CrianÃƒÂ§as</h1>
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         <div className="p-4 border rounded">
           <h2 className="font-semibold mb-2">Cadastrar nova</h2>
@@ -31,7 +31,7 @@ export default function ChildrenList() {
                 <div>
                   <div className="font-medium">{c.name}</div>
                   <div className="text-sm text-gray-600">
-                    {c.age} anos • {c.gender}
+                    {c.age} anos Ã¢â‚¬Â¢ {c.gender}
                   </div>
                 </div>
                 <div className="flex gap-2">

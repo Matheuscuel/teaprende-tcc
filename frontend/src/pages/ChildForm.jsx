@@ -15,7 +15,7 @@ export default function ChildForm({ onSuccess }) {
         name: form.name,
         birth_date: form.birth_date || null,
         user_id: form.user_id ? Number(form.user_id) : null,
-        // owner_id é definido no backend quando o papel for "responsavel"
+        // owner_id ÃƒÂ© definido no backend quando o papel for "responsavel"
         notes: form.notes || null,
       }
       await api.post("/children", payload)
@@ -31,7 +31,7 @@ export default function ChildForm({ onSuccess }) {
         <input type="date" className="border p-2 w-full" name="birth_date" value={form.birth_date} onChange={onChange} />
         <input className="border p-2 w-full" name="user_id" value={form.user_id} onChange={onChange} placeholder="ID do terapeuta (opcional)" />
       </div>
-      <textarea className="border p-2 w-full" name="notes" value={form.notes} onChange={onChange} placeholder="Observações" />
+      <textarea className="border p-2 w-full" name="notes" value={form.notes} onChange={onChange} placeholder="ObservaÃƒÂ§ÃƒÂµes" />
       <button disabled={saving} className="px-3 py-2 border rounded">{saving ? "Salvando..." : "Salvar"}</button>
     </form>
   )

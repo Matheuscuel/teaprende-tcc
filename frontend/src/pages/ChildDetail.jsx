@@ -33,7 +33,7 @@ export default function ChildDetail() {
       <div>
         <h1 className="text-xl font-bold">{child.name}</h1>
         <div className="text-sm text-gray-600">
-          {child.age} anos • {child.gender} • {child.parent_name} ({child.parent_email})
+          {child.age} anos Ã¢â‚¬Â¢ {child.gender} Ã¢â‚¬Â¢ {child.parent_name} ({child.parent_email})
         </div>
       </div>
       <div className="grid md:grid-cols-2 gap-4">
@@ -47,12 +47,12 @@ export default function ChildDetail() {
             <div key={s.game_id} className="border rounded p-3">
               <h3 className="font-semibold mb-1">{s.title}</h3>
               <div className="text-sm mb-2">
-                Sessões: {s.sessions} • Média: {s.avg_score} • Mediana: {Math.round(s.median_score)} • Tempo total: {s.total_time_spent ?? 0}s
+                SessÃƒÂµes: {s.sessions} Ã¢â‚¬Â¢ MÃƒÂ©dia: {s.avg_score} Ã¢â‚¬Â¢ Mediana: {Math.round(s.median_score)} Ã¢â‚¬Â¢ Tempo total: {s.total_time_spent ?? 0}s
               </div>
               <div className="space-y-4">
                 <div>
-                  <div className="text-sm font-medium mb-1">Evolução da Pontuação</div>
-                  <Line data={{ labels, datasets: [{ label: 'Pontuação média', data: scores }] }} />
+                  <div className="text-sm font-medium mb-1">EvoluÃƒÂ§ÃƒÂ£o da PontuaÃƒÂ§ÃƒÂ£o</div>
+                  <Line data={{ labels, datasets: [{ label: 'PontuaÃƒÂ§ÃƒÂ£o mÃƒÂ©dia', data: scores }] }} />
                 </div>
                 <div>
                   <div className="text-sm font-medium mb-1">Tempo gasto (s)</div>

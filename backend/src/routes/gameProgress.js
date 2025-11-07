@@ -1,47 +1,26 @@
-// src/routes/gameProgress.js
-const express = require('express');
-const router = express.Router();
-const { authMiddleware } = require('../middleware/auth');
-const svc = require('../services/gameProgressService');
+﻿"use strict";
+const express = require("express");
+const router  = express.Router();
+const { requireAuth } = require("../middlewares/auth.js");
+const { createProgress } = require("../controllers/gameProgressController");
 
-// papéis que podem registrar progresso (ajuste se quiser)
-const allow = (...roles) => (req, res, next) => {
-  const role = req.userRole || req.user?.role; // compat com seu middleware
-  if (!roles.includes(role)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  next();
-};
+// GET /api/game-progress?childId=3 (lista últimas 100 sessões)
+router.get("/", requireAuth, async (req, res, next) => {
+  try {
+    const childId = req.query.childId ? Number(req.query.childId) : null;
+    const q = `
+      SELECT id, child_id, game_id, score, started_at, finished_at, data
+      FROM game_sessions
+      WHERE ($1::int IS NULL OR child_id=$1)
+      ORDER BY started_at DESC
+      LIMIT 100
+    `;
+    const { rows } = await req.db.query(q, [childId]);
+    res.status(200).json({ items: rows });
+  } catch (e) { next(e); }
+});
 
-/**
- * POST /api/game-progress
- * body: { game_id, child_id, score, time_spent?, notes? }
- */
-router.post(
-  '/',
-  authMiddleware,
-  allow('terapeuta', 'professor'),
-  async (req, res, next) => {
-    try {
-      const { game_id, child_id, score, time_spent, notes } = req.body || {};
-
-      if (![game_id, child_id, score].every(v => v !== undefined && v !== null)) {
-        return res.status(400).json({ error: 'game_id, child_id e score são obrigatórios' });
-      }
-
-      const row = await svc.create(req.db, {
-        game_id: Number(game_id),
-        child_id: Number(child_id),
-        score: Number(score),
-        time_spent: time_spent !== undefined && time_spent !== null ? Number(time_spent) : null,
-        notes: typeof notes === 'string' ? notes : null
-      });
-
-      return res.status(201).json(row);
-    } catch (e) {
-      next(e);
-    }
-  }
-);
+// POST /api/game-progress { child_id, game_id, score, time_spent?, notes? }
+router.post("/", requireAuth, (req, res, next) => createProgress(req, res, next));
 
 module.exports = router;

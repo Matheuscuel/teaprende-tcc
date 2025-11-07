@@ -1,0 +1,78 @@
+﻿version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: teaprende_db
+    environment:
+      POSTGRES_USER: tea
+      POSTGRES_PASSWORD: tea
+      POSTGRES_DB: tea_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: node:20
+    container_name: teaprende_api
+    working_dir: /app/backend
+    volumes:
+      - ./:/app
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: tea
+      DB_PASSWORD: tea
+      DB_NAME: tea_system
+      JWT_SECRET: changeme
+      PORT: "3001"
+    command: >
+      sh -c "npm ci &&
+             npx knex migrate:latest --knexfile knexfile.js &&
+             node src/server.js"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+
+  web_next:
+    image: node:20
+    container_name: teaprende_web_next
+    working_dir: /app
+    volumes:
+      - ./:/app
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    command: >
+      sh -c "npm install --legacy-peer-deps && npm run dev -- -H 0.0.0.0"
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+  # Se preferir o CRA em /frontend, descomente abaixo e comente o serviço web_next:
+  # web_cra:
+  #   image: node:20
+  #   container_name: teaprende_web_cra
+  #   working_dir: /app/frontend
+  #   volumes:
+  #     - ./:/app
+  #   environment:
+  #     REACT_APP_API_URL: http://localhost:3001
+  #   command: >
+  #     sh -c "npm ci && npm start"
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - "5173:3000"
+
+volumes:
+  dbdata:
+

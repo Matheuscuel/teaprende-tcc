@@ -1,2 +1,2 @@
-const NotFound = () => <div>Página não encontrada</div>;
+const NotFound = () => <div>PÃƒÂ¡gina nÃƒÂ£o encontrada</div>;
 export default NotFound;
