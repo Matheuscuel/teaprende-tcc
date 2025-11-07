@@ -1,0 +1,62 @@
+﻿const db = require("../db");
+
+// Extrai e saneia o childId de params/query, tolerando "?from=...&to=..."
+function getChildId(req) {
+  const p = req.params || {};
+  const q = req.query || {};
+  const raw =
+    p.childId ?? p.id ?? q.child_id ?? q.id ??
+    (typeof p[0] === "string" ? p[0] : undefined);
+
+  const s = String(raw ?? "").split("?")[0];
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// Normaliza para que controladores que leem req.params.id/childId sempre recebam o número
+function populateChildId(req, res, next) {
+  const id = getChildId(req);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ message: "Parâmetros inválidos" });
+  }
+  req.params = req.params || {};
+  req.params.childId = String(id);
+  req.params.id = String(id);
+  next();
+}
+
+// Verifica se o usuário (req.user.sub) tem vínculo com a criança
+async function authorizeChildAccess(req, res, next) {
+  try {
+    const userId = req.user?.sub;
+    const childId = getChildId(req);
+    if (!userId || !Number.isFinite(childId)) {
+      return res.status(400).json({ message: "Parâmetros inválidos" });
+    }
+
+    // Libera admin universalmente (se não quiser, remova este if)
+    if (req.user?.role === "admin") return next();
+
+    const link = await db("user_children")
+      .where({ user_id: userId, child_id: childId })
+      .first();
+
+    if (!link) return res.status(403).json({ message: "Acesso negado" });
+    return next();
+  } catch (e) {
+    return next(e);
+  }
+}
+
+// Garante papel permitido na rota
+function requireRole(allowed) {
+  return (req, res, next) => {
+    const role = req.user?.role;
+    if (!role || !allowed.includes(role)) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    next();
+  };
+}
+
+module.exports = { getChildId, populateChildId, authorizeChildAccess, requireRole };

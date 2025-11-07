@@ -19,8 +19,8 @@ const Layout = ({ children }) => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: HomeIcon },
     { name: "Jogos", href: "/games", icon: GamepadIcon },
-    { name: "Relatórios", href: "/reports", icon: BarChartIcon },
-    { name: "Usuários", href: "/users", icon: UsersIcon, roles: ["terapeuta", "professor"] },
+    { name: "RelatÃƒÂ³rios", href: "/reports", icon: BarChartIcon },
+    { name: "UsuÃƒÂ¡rios", href: "/users", icon: UsersIcon, roles: ["terapeuta", "professor"] },
     { name: "Perfil", href: "/profile", icon: UserIcon },
   ]
 

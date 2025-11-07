@@ -1,10 +1,10 @@
-const express = require("express")
+﻿const express = require("express")
 const { authMiddleware, isAdmin } = require("../middleware/auth")
 const { check, validationResult } = require("express-validator")
 
 const router = express.Router()
 
-// Middleware de autenticação para todas as rotas
+// Middleware de autenticaÃ§Ã£o para todas as rotas
 router.use(authMiddleware)
 
 // Rota para listar todos os jogos
@@ -13,7 +13,7 @@ router.get("/", async (req, res) => {
     const db = req.db
 
     const result = await db.query(
-      "SELECT id, title, description, level, category, image_url, created_at FROM games ORDER BY title",
+      "SELECT id, slug, title, description, level, category, image_url, created_at FROM games ORDER BY title",
     )
 
     res.json(result.rows)
@@ -23,19 +23,19 @@ router.get("/", async (req, res) => {
   }
 })
 
-// Rota para obter detalhes de um jogo específico
+// Rota para obter detalhes de um jogo especÃ­fico
 router.get("/:id", async (req, res) => {
   try {
     const db = req.db
     const gameId = req.params.id
 
     const result = await db.query(
-      "SELECT id, title, description, level, category, image_url, instructions, created_at FROM games WHERE id = $1",
+      "SELECT id, slug, title, description, level, category, image_url, instructions, created_at FROM games WHERE id = $1",
       [gameId],
     )
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Jogo não encontrado" })
+      return res.status(404).json({ message: "Jogo nÃ£o encontrado" })
     }
 
     res.json(result.rows[0])
@@ -50,13 +50,13 @@ router.post(
   "/",
   isAdmin,
   [
-    check("title", "Título é obrigatório").not().isEmpty(),
-    check("description", "Descrição é obrigatória").not().isEmpty(),
-    check("level", "Nível é obrigatório").isIn(["Iniciante", "Intermediário", "Avançado"]),
-    check("category", "Categoria é obrigatória").not().isEmpty(),
+    check("title", "TÃ­tulo Ã© obrigatÃ³rio").not().isEmpty(),
+    check("description", "DescriÃ§Ã£o Ã© obrigatÃ³ria").not().isEmpty(),
+    check("level", "NÃ­vel Ã© obrigatÃ³rio").isIn(["Iniciante", "IntermediÃ¡rio", "AvanÃ§ado"]),
+    check("category", "Categoria Ã© obrigatÃ³ria").not().isEmpty(),
   ],
   async (req, res) => {
-    // Verificar erros de validação
+    // Verificar erros de validaÃ§Ã£o
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() })
@@ -88,13 +88,13 @@ router.put(
   "/:id",
   isAdmin,
   [
-    check("title", "Título é obrigatório").not().isEmpty(),
-    check("description", "Descrição é obrigatória").not().isEmpty(),
-    check("level", "Nível é obrigatório").isIn(["Iniciante", "Intermediário", "Avançado"]),
-    check("category", "Categoria é obrigatória").not().isEmpty(),
+    check("title", "TÃ­tulo Ã© obrigatÃ³rio").not().isEmpty(),
+    check("description", "DescriÃ§Ã£o Ã© obrigatÃ³ria").not().isEmpty(),
+    check("level", "NÃ­vel Ã© obrigatÃ³rio").isIn(["Iniciante", "IntermediÃ¡rio", "AvanÃ§ado"]),
+    check("category", "Categoria Ã© obrigatÃ³ria").not().isEmpty(),
   ],
   async (req, res) => {
-    // Verificar erros de validação
+    // Verificar erros de validaÃ§Ã£o
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() })
@@ -112,7 +112,7 @@ router.put(
       )
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Jogo não encontrado" })
+        return res.status(404).json({ message: "Jogo nÃ£o encontrado" })
       }
 
       res.json(result.rows[0])
@@ -123,16 +123,16 @@ router.put(
   },
 )
 
-// Rota para registrar o progresso de uma criança em um jogo
+// Rota para registrar o progresso de uma crianÃ§a em um jogo
 router.post(
   "/progress",
   [
-    check("gameId", "ID do jogo é obrigatório").not().isEmpty(),
-    check("childId", "ID da criança é obrigatório").not().isEmpty(),
-    check("score", "Pontuação é obrigatória").isInt({ min: 0, max: 100 }),
+    check("gameId", "ID do jogo Ã© obrigatÃ³rio").not().isEmpty(),
+    check("childId", "ID da crianÃ§a Ã© obrigatÃ³rio").not().isEmpty(),
+    check("score", "PontuaÃ§Ã£o Ã© obrigatÃ³ria").isInt({ min: 0, max: 100 }),
   ],
   async (req, res) => {
-    // Verificar erros de validação
+    // Verificar erros de validaÃ§Ã£o
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() })
@@ -143,7 +143,7 @@ router.post(
     try {
       const db = req.db
 
-      // Verificar se o usuário tem acesso a esta criança
+      // Verificar se o usuÃ¡rio tem acesso a esta crianÃ§a
       let hasAccess = false
 
       if (req.userRole === "responsavel") {
@@ -156,7 +156,7 @@ router.post(
         ])
         hasAccess = result.rows.length > 0
       } else if (req.userRole === "crianca") {
-        // Se o usuário for uma criança, verificar se é a própria criança
+        // Se o usuÃ¡rio for uma crianÃ§a, verificar se Ã© a prÃ³pria crianÃ§a
         hasAccess = req.userId === childId
       }
 
@@ -168,14 +168,14 @@ router.post(
       const gameResult = await db.query("SELECT * FROM games WHERE id = $1", [gameId])
 
       if (gameResult.rows.length === 0) {
-        return res.status(404).json({ message: "Jogo não encontrado" })
+        return res.status(404).json({ message: "Jogo nÃ£o encontrado" })
       }
 
-      // Verificar se a criança existe
+      // Verificar se a crianÃ§a existe
       const childResult = await db.query("SELECT * FROM children WHERE id = $1", [childId])
 
       if (childResult.rows.length === 0) {
-        return res.status(404).json({ message: "Criança não encontrada" })
+        return res.status(404).json({ message: "CrianÃ§a nÃ£o encontrada" })
       }
 
       // Registrar o progresso
@@ -204,7 +204,7 @@ router.get("/recent-activities", async (req, res) => {
     let params
 
     if (req.userRole === "responsavel") {
-      // Responsáveis veem apenas atividades de suas próprias crianças
+      // ResponsÃ¡veis veem apenas atividades de suas prÃ³prias crianÃ§as
       query = `
         SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
         FROM game_progress gp
@@ -216,7 +216,7 @@ router.get("/recent-activities", async (req, res) => {
       `
       params = [req.userId]
     } else if (req.userRole === "terapeuta" || req.userRole === "professor") {
-      // Terapeutas e professores veem atividades de crianças associadas a eles
+      // Terapeutas e professores veem atividades de crianÃ§as associadas a eles
       query = `
         SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
         FROM game_progress gp
@@ -229,7 +229,7 @@ router.get("/recent-activities", async (req, res) => {
       `
       params = [req.userId]
     } else if (req.userRole === "crianca") {
-      // Crianças veem apenas suas próprias atividades
+      // CrianÃ§as veem apenas suas prÃ³prias atividades
       query = `
         SELECT gp.id, c.name as child_name, g.name as game_name, gp.score, gp.created_at as date
         FROM game_progress gp
@@ -254,4 +254,5 @@ router.get("/recent-activities", async (req, res) => {
 })
 
 module.exports = router
+
 

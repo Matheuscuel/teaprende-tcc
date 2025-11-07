@@ -1,0 +1,5 @@
+﻿{
+  "entry": ["./app", "./src", "./pages"],
+  "ignorePatterns": ["**/*.d.ts", ".next/**", "node_modules/**", "_reports/**", "_trash/**"],
+  "ignoreUnresolved": ["next/*", "@/*"]
+}

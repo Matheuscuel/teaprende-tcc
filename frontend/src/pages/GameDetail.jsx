@@ -47,7 +47,7 @@ const GameDetail = () => {
 
   const handleStartGame = () => {
     if (!selectedChild) {
-      alert("Por favor, selecione uma criança para jogar.")
+      alert("Por favor, selecione uma crianÃƒÂ§a para jogar.")
       return
     }
 
@@ -92,7 +92,7 @@ const GameDetail = () => {
       <Layout>
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6 text-center">
-            <p className="text-gray-500">Jogo não encontrado.</p>
+            <p className="text-gray-500">Jogo nÃƒÂ£o encontrado.</p>
             <button
               onClick={() => navigate("/games")}
               className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -130,16 +130,16 @@ const GameDetail = () => {
             </div>
             <dl>
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt className="text-sm font-medium text-gray-500">Descrição</dt>
+                <dt className="text-sm font-medium text-gray-500">DescriÃƒÂ§ÃƒÂ£o</dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{game.description}</dd>
               </div>
               <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                <dt className="text-sm font-medium text-gray-500">Instruções</dt>
+                <dt className="text-sm font-medium text-gray-500">InstruÃƒÂ§ÃƒÂµes</dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{game.instructions}</dd>
               </div>
               {(user?.role === "terapeuta" || user?.role === "professor" || user?.role === "responsavel") && (
                 <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">Selecione a criança</dt>
+                  <dt className="text-sm font-medium text-gray-500">Selecione a crianÃƒÂ§a</dt>
                   <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                     {children.length > 0 ? (
                       <select
@@ -154,7 +154,7 @@ const GameDetail = () => {
                         ))}
                       </select>
                     ) : (
-                      <p className="text-sm text-gray-500">Nenhuma criança cadastrada.</p>
+                      <p className="text-sm text-gray-500">Nenhuma crianÃƒÂ§a cadastrada.</p>
                     )}
                   </dd>
                 </div>
@@ -180,10 +180,10 @@ const GameDetail = () => {
       ) : gameCompleted ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <div className="px-4 py-5 sm:p-6 text-center">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Jogo Concluído!</h3>
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Jogo ConcluÃƒÂ­do!</h3>
             <div className="mb-6">
               <div className="text-5xl font-bold text-indigo-600 mb-2">{score}%</div>
-              <p className="text-sm text-gray-500">Pontuação</p>
+              <p className="text-sm text-gray-500">PontuaÃƒÂ§ÃƒÂ£o</p>
             </div>
             <div className="flex justify-center space-x-4">
               <button
@@ -203,22 +203,22 @@ const GameDetail = () => {
         </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          {/* Aqui seria implementado o jogo específico baseado no ID */}
+          {/* Aqui seria implementado o jogo especÃƒÂ­fico baseado no ID */}
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">{game.title}</h3>
 
-            {/* Exemplo de um jogo simples de reconhecimento de emoções */}
-            {game.category === "Reconhecimento de Emoções" && <EmotionsGame onComplete={handleCompleteGame} />}
+            {/* Exemplo de um jogo simples de reconhecimento de emoÃƒÂ§ÃƒÂµes */}
+            {game.category === "Reconhecimento de EmoÃƒÂ§ÃƒÂµes" && <EmotionsGame onComplete={handleCompleteGame} />}
 
             {/* Outros tipos de jogos seriam implementados de forma similar */}
-            {game.category !== "Reconhecimento de Emoções" && (
+            {game.category !== "Reconhecimento de EmoÃƒÂ§ÃƒÂµes" && (
               <div className="text-center py-10">
-                <p className="text-gray-500 mb-4">Implementação do jogo "{game.title}" estaria aqui.</p>
+                <p className="text-gray-500 mb-4">ImplementaÃƒÂ§ÃƒÂ£o do jogo "{game.title}" estaria aqui.</p>
                 <button
                   onClick={() => handleCompleteGame(Math.floor(Math.random() * 100))}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
-                  Simular Conclusão do Jogo
+                  Simular ConclusÃƒÂ£o do Jogo
                 </button>
               </div>
             )}
@@ -229,7 +229,7 @@ const GameDetail = () => {
   )
 }
 
-// Componente de exemplo para um jogo de reconhecimento de emoções
+// Componente de exemplo para um jogo de reconhecimento de emoÃƒÂ§ÃƒÂµes
 
 const EmotionsGame = ({ onComplete }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -239,32 +239,32 @@ const EmotionsGame = ({ onComplete }) => {
   const questions = [
     {
       image: "/placeholder.svg?height=200&width=200",
-      question: "Como esta pessoa está se sentindo?",
+      question: "Como esta pessoa estÃƒÂ¡ se sentindo?",
       options: ["Feliz", "Triste", "Com raiva", "Surpreso"],
       answer: "Feliz",
     },
     {
       image: "/placeholder.svg?height=200&width=200",
-      question: "Qual emoção esta expressão representa?",
+      question: "Qual emoÃƒÂ§ÃƒÂ£o esta expressÃƒÂ£o representa?",
       options: ["Medo", "Tristeza", "Alegria", "Nojo"],
       answer: "Tristeza",
     },
     {
       image: "/placeholder.svg?height=200&width=200",
-      question: "O que esta pessoa está sentindo?",
-      options: ["Confusão", "Surpresa", "Raiva", "Vergonha"],
+      question: "O que esta pessoa estÃƒÂ¡ sentindo?",
+      options: ["ConfusÃƒÂ£o", "Surpresa", "Raiva", "Vergonha"],
       answer: "Surpresa",
     },
     {
       image: "/placeholder.svg?height=200&width=200",
-      question: "Identifique a emoção mostrada:",
+      question: "Identifique a emoÃƒÂ§ÃƒÂ£o mostrada:",
       options: ["Raiva", "Medo", "Ansiedade", "Entusiasmo"],
       answer: "Raiva",
     },
     {
       image: "/placeholder.svg?height=200&width=200",
-      question: "Qual sentimento está sendo demonstrado?",
-      options: ["Orgulho", "Curiosidade", "Medo", "Tédio"],
+      question: "Qual sentimento estÃƒÂ¡ sendo demonstrado?",
+      options: ["Orgulho", "Curiosidade", "Medo", "TÃƒÂ©dio"],
       answer: "Medo",
     },
   ]
@@ -295,9 +295,9 @@ const EmotionsGame = ({ onComplete }) => {
     <div className="max-w-3xl mx-auto">
       <div className="mb-4 flex justify-between items-center">
         <span className="text-sm font-medium text-gray-500">
-          Questão {currentQuestion + 1} de {questions.length}
+          QuestÃƒÂ£o {currentQuestion + 1} de {questions.length}
         </span>
-        <span className="text-sm font-medium text-gray-500">Pontuação: {score}</span>
+        <span className="text-sm font-medium text-gray-500">PontuaÃƒÂ§ÃƒÂ£o: {score}</span>
       </div>
 
       <div className="bg-gray-50 p-6 rounded-lg mb-6">
@@ -305,7 +305,7 @@ const EmotionsGame = ({ onComplete }) => {
         <div className="flex justify-center mb-6">
           <img
             src={questions[currentQuestion].image || "/placeholder.svg"}
-            alt="Expressão facial"
+            alt="ExpressÃƒÂ£o facial"
             className="w-48 h-48 object-cover rounded-lg"
           />
         </div>

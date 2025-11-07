@@ -1,0 +1,45 @@
+﻿"use strict";
+const jwt = require("jsonwebtoken");
+
+// Tenta obter um pool PG se existir no projeto, mas não derruba a API se não houver
+let pool;
+try { pool = require("../"); } catch {}
+try { if (!pool) pool = require("../db/index"); } catch {}
+try { if (!pool) pool = require("../"); } catch {}
+
+function asInt(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : x;
+}
+
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token  = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ message: "Token ausente" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
+
+    // Aceita qualquer formato comum de ID no token
+    const uid = decoded.userId ?? decoded.id ?? decoded.sub;
+    if (!uid) return res.status(401).json({ message: "Token inválido" });
+
+    // Anexa nos dois formatos para compatibilidade com rotas antigas e novas
+    const coerced = asInt(uid);
+    req.userId    = coerced;
+    req.user      = { ...decoded, id: coerced, sub: coerced };
+
+    // (Opcional) ping leve no banco — nunca falha a request por isso
+    if (pool?.query) {
+      try { await pool.query("select 1"); } catch (e) { /* ignora */ }
+    }
+
+    return next();
+  } catch (err) {
+    console.error("auth jwt error:", err?.message);
+    return res.status(401).json({ message: "Token inválido" });
+  }
+}
+
+module.exports = { requireAuth };
+

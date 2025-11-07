@@ -1,0 +1,23 @@
+﻿const express = require("express");
+const router  = express.Router();
+
+const ctrl = require("../controllers/reports.js");
+const { requireAuth } = require("../middlewares/auth"); // já existente no projeto
+const { requireRole, authorizeChildAccess, populateChildId } = require("../middlewares/childAccess");
+
+// Papéis que podem ver relatórios
+const ALLOWED = ["therapist","teacher","guardian","admin"];
+
+// Cadeia de guards aplicada em TODAS as rotas de relatório
+const guards = [requireAuth, requireRole(ALLOWED), authorizeChildAccess, populateChildId];
+
+router.get("/reports/pdf/:childId",              guards, ctrl.pdf);
+router.get("/reports/progress/:childId",         guards, ctrl.progress);
+router.get("/reports/skills/:childId",           guards, ctrl.skills);
+router.get("/reports/time-spent/:childId",       guards, ctrl.timeSpent);
+router.get("/reports/recommendations/:childId",  guards, ctrl.recommendations);
+
+module.exports = router;
+
+
+
